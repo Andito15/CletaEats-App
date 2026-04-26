@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -43,6 +44,10 @@ import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.PrimaryGreen
 import com.cletaeats.app.ui.theme.TextSoft
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarBorder
 
 @Composable
 fun DireccionesScreen(
@@ -171,6 +176,8 @@ fun DireccionesScreen(
                                     .fillMaxWidth()
                                     .padding(16.dp)
                             ) {
+
+                                // 🔹 ICONO
                                 Icon(
                                     imageVector = if (item.esPredeterminada) {
                                         Icons.Rounded.CheckCircle
@@ -183,6 +190,7 @@ fun DireccionesScreen(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
+                                // 🔹 TEXTO
                                 Text(
                                     text = item.alias,
                                     fontSize = 18.sp
@@ -198,6 +206,67 @@ fun DireccionesScreen(
                                     color = TextSoft,
                                     fontSize = 12.sp
                                 )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 🔥 ACCIONES
+                                androidx.compose.foundation.layout.Row(
+                                    horizontalArrangement = Arrangement.End,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+
+                                    // ⭐ predeterminada
+                                    IconButton(
+                                        onClick = {
+                                            val cId = clienteId ?: return@IconButton
+                                            val dId = item.direccionId ?: return@IconButton
+
+                                            if (item.esPredeterminada) return@IconButton
+
+                                            scope.launch {
+                                                try {
+                                                    apiService.marcarDireccionPredeterminada(cId, dId)
+                                                    cargar()
+                                                } catch (_: Exception) {
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        val isDefault = item.esPredeterminada == true
+
+                                        Icon(
+                                            imageVector = if (isDefault) {
+                                                Icons.Rounded.Star
+                                            } else {
+                                                Icons.Outlined.StarBorder
+                                            },
+                                            contentDescription = "Predeterminada",
+                                            tint = PrimaryGreen
+                                        )
+                                    }
+
+                                    // 🗑 eliminar
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                val cId = clienteId ?: return@launch
+                                                val dId = item.direccionId ?: return@launch
+
+                                                try {
+                                                    apiService.eliminarDireccion(cId, dId)
+                                                    cargar()
+                                                } catch (_: Exception) {
+                                                }
+                                            }
+                                        }
+                                    ){
+                                        Icon(
+                                            Icons.Rounded.Delete,
+                                            contentDescription = "Eliminar",
+                                            tint = Color.Red
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
