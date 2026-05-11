@@ -1,11 +1,20 @@
 package com.cletaeats.app.data.remote
 
 import com.cletaeats.app.data.model.BasicResponse
+import com.cletaeats.app.data.model.CalificacionRequest
+import com.cletaeats.app.data.model.CalificacionResponse
 import com.cletaeats.app.data.model.ClienteDireccionRequest
 import com.cletaeats.app.data.model.ClienteDireccionResponse
+import com.cletaeats.app.data.model.ComboResponse
 import com.cletaeats.app.data.model.LoginRequest
 import com.cletaeats.app.data.model.LoginResponse
+import com.cletaeats.app.data.model.PedidoCreateRequest
+import com.cletaeats.app.data.model.PedidoEstadoRequest
+import com.cletaeats.app.data.model.PedidoResponse
+import com.cletaeats.app.data.model.QuejaRequest
+import com.cletaeats.app.data.model.QuejaResponse
 import com.cletaeats.app.data.model.RegisterRequest
+import com.cletaeats.app.data.model.RestauranteResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -13,6 +22,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -55,4 +65,59 @@ interface ApiService {
         @Path("clienteId") clienteId: Long,
         @Path("direccionId") direccionId: Long
     ): ClienteDireccionResponse
+
+    @GET("api/restaurantes")
+    suspend fun listarRestaurantes(
+        @Query("soloActivos") soloActivos: Boolean = true
+    ): List<RestauranteResponse>
+
+    @GET("api/restaurantes/{id}")
+    suspend fun obtenerRestaurante(
+        @Path("id") id: Long
+    ): RestauranteResponse
+
+    @GET("api/restaurantes/{restauranteId}/combos")
+    suspend fun listarCombosPorRestaurante(
+        @Path("restauranteId") restauranteId: Long,
+        @Query("soloActivos") soloActivos: Boolean = true
+    ): List<ComboResponse>
+
+    @POST("api/clientes/pedidos")
+    suspend fun crearPedido(
+        @Body request: PedidoCreateRequest
+    ): PedidoResponse
+
+    @GET("api/clientes/pedidos/mis-pedidos")
+    suspend fun listarMisPedidosCliente(): List<PedidoResponse>
+
+    @GET("api/clientes/pedidos/{pedidoId}")
+    suspend fun obtenerPedidoCliente(
+        @Path("pedidoId") pedidoId: Long
+    ): PedidoResponse
+
+    @POST("api/clientes/pedidos/{pedidoId}/calificacion")
+    suspend fun registrarCalificacion(
+        @Path("pedidoId") pedidoId: Long,
+        @Body request: CalificacionRequest
+    ): CalificacionResponse
+
+    @POST("api/clientes/pedidos/{pedidoId}/queja")
+    suspend fun registrarQueja(
+        @Path("pedidoId") pedidoId: Long,
+        @Body request: QuejaRequest
+    ): QuejaResponse
+
+    @GET("api/repartidores/pedidos/mis-pedidos")
+    suspend fun listarMisPedidosRepartidor(): List<PedidoResponse>
+
+    @GET("api/repartidores/pedidos/{pedidoId}")
+    suspend fun obtenerPedidoRepartidor(
+        @Path("pedidoId") pedidoId: Long
+    ): PedidoResponse
+
+    @PATCH("api/repartidores/pedidos/{pedidoId}/estado")
+    suspend fun actualizarEstadoPedidoRepartidor(
+        @Path("pedidoId") pedidoId: Long,
+        @Body request: PedidoEstadoRequest
+    ): PedidoResponse
 }
