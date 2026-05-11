@@ -26,6 +26,8 @@ import retrofit2.http.Query
 
 interface ApiService {
 
+    // AUTH
+
     @POST("api/auth/login")
     suspend fun login(
         @Body request: LoginRequest
@@ -35,6 +37,8 @@ interface ApiService {
     suspend fun register(
         @Body request: RegisterRequest
     ): BasicResponse
+
+    // DIRECCIONES CLIENTE
 
     @GET("api/clientes/{clienteId}/direcciones")
     suspend fun listarDirecciones(
@@ -66,6 +70,8 @@ interface ApiService {
         @Path("direccionId") direccionId: Long
     ): ClienteDireccionResponse
 
+    // RESTAURANTES Y COMBOS
+
     @GET("api/restaurantes")
     suspend fun listarRestaurantes(
         @Query("soloActivos") soloActivos: Boolean = true
@@ -82,6 +88,8 @@ interface ApiService {
         @Query("soloActivos") soloActivos: Boolean = true
     ): List<ComboResponse>
 
+    // PEDIDOS CLIENTE
+
     @POST("api/clientes/pedidos")
     suspend fun crearPedido(
         @Body request: PedidoCreateRequest
@@ -95,6 +103,8 @@ interface ApiService {
         @Path("pedidoId") pedidoId: Long
     ): PedidoResponse
 
+    // FEEDBACK CLIENTE
+
     @POST("api/clientes/pedidos/{pedidoId}/calificacion")
     suspend fun registrarCalificacion(
         @Path("pedidoId") pedidoId: Long,
@@ -106,6 +116,8 @@ interface ApiService {
         @Path("pedidoId") pedidoId: Long,
         @Body request: QuejaRequest
     ): QuejaResponse
+
+    // PEDIDOS REPARTIDOR
 
     @GET("api/repartidores/pedidos/mis-pedidos")
     suspend fun listarMisPedidosRepartidor(): List<PedidoResponse>
