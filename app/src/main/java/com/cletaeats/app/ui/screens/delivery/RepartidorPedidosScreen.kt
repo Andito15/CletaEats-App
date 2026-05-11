@@ -278,6 +278,14 @@ private fun RepartidorPedidoCard(
                 icon = Icons.Rounded.Route,
                 text = "${"%.2f".format(pedido.distanciaKm)} km · ${money(pedido.costoKmAplicado)}/km"
             )
+            if (pedido.estado == "EN_CAMINO") {
+                pedido.pedidoId?.let { id ->
+                    DeliveryLocationSender(
+                        pedidoId = id,
+                        enabled = true
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

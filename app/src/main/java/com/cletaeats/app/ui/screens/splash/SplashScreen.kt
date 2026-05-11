@@ -28,11 +28,14 @@ fun SplashScreen(
     onFinish: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val session = remember { SessionManager(context) }
+    val sessionManager = remember { SessionManager(context) }
 
     LaunchedEffect(Unit) {
-        delay(900)
-        onFinish(!session.getToken().isNullOrBlank())
+        sessionManager.clearSession()
+        delay(700)
+
+        // Siempre inicia sin sesión.
+        onFinish(false)
     }
 
     Column(

@@ -23,6 +23,8 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import com.cletaeats.app.data.model.UbicacionRepartidorRequest
+import com.cletaeats.app.data.model.UbicacionRepartidorResponse
 
 interface ApiService {
 
@@ -132,4 +134,14 @@ interface ApiService {
         @Path("pedidoId") pedidoId: Long,
         @Body request: PedidoEstadoRequest
     ): PedidoResponse
+
+    @PATCH("api/repartidores/ubicacion")
+    suspend fun actualizarUbicacionRepartidor(
+        @Body request: UbicacionRepartidorRequest
+    ): UbicacionRepartidorResponse
+
+    @GET("api/clientes/pedidos/{pedidoId}/tracking")
+    suspend fun obtenerTrackingPedido(
+        @Path("pedidoId") pedidoId: Long
+    ): UbicacionRepartidorResponse
 }

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Star
@@ -52,6 +53,7 @@ import com.cletaeats.app.ui.components.ErrorState
 import com.cletaeats.app.ui.components.LoadingBox
 import com.cletaeats.app.ui.components.StatusChip
 import com.cletaeats.app.ui.components.money
+import com.cletaeats.app.ui.screens.delivery.DeliveryLocationSender
 import com.cletaeats.app.ui.theme.DangerRed
 import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
@@ -62,6 +64,7 @@ import kotlinx.coroutines.launch
 fun PedidoDetalleScreen(
     pedidoId: Long,
     onBack: () -> Unit,
+    onTracking: (Long) -> Unit,
     onFeedback: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -76,9 +79,9 @@ fun PedidoDetalleScreen(
     var savingEstado by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    fun cargarPedido() {
+    fun cargarPedido(showLoading: Boolean = true) {
         scope.launch {
-            loading = true
+            if (showLoading) loading = true
             error = null
 
             try {
@@ -101,10 +104,12 @@ fun PedidoDetalleScreen(
             error = null
 
             try {
-                pedido = api.actualizarEstadoPedidoRepartidor(
+                api.actualizarEstadoPedidoRepartidor(
                     pedidoId = pedidoId,
                     request = PedidoEstadoRequest(estado = estado)
                 )
+
+                pedido = api.obtenerPedidoRepartidor(pedidoId)
             } catch (e: Exception) {
                 error = e.message ?: "No se pudo actualizar el estado."
             } finally {
@@ -145,6 +150,9 @@ fun PedidoDetalleScreen(
                 savingEstado = savingEstado,
                 error = error,
                 onEstado = { estado -> actualizarEstado(estado) },
+                onTracking = {
+                    pedido!!.pedidoId?.let(onTracking)
+                },
                 onFeedback = {
                     pedido!!.pedidoId?.let(onFeedback)
                 },
@@ -161,6 +169,7 @@ private fun PedidoDetailContent(
     savingEstado: Boolean,
     error: String?,
     onEstado: (String) -> Unit,
+    onTracking: () -> Unit,
     onFeedback: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -171,6 +180,15 @@ private fun PedidoDetailContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (isDelivery && pedido.estado != "ENTREGADO" && pedido.estado != "CANCELADO") {
+            pedido.pedidoId?.let { id ->
+                DeliveryLocationSender(
+                    pedidoId = id,
+                    enabled = pedido.estado == "EN_CAMINO"
+                )
+            }
+        }
+
         Card(
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
@@ -297,6 +315,25 @@ private fun PedidoDetailContent(
             }
         }
 
+        if (!isDelivery && pedido.estado == "EN_CAMINO") {
+            Button(
+                onClick = onTracking,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryGreen,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Map,
+                    contentDescription = null
+                )
+
+                Text("  Ver entrega")
+            }
+        }
+
         if (isDelivery) {
             Card(
                 shape = RoundedCornerShape(28.dp),
@@ -320,14 +357,22 @@ private fun PedidoDetailContent(
                     ) {
                         OutlinedButton(
                             onClick = { onEstado("EN_CAMINO") },
-                            enabled = !savingEstado && pedido.estado != "ENTREGADO",
+                            enabled = !savingEstado && pedido.estado != "ENTREGADO" && pedido.estado != "EN_CAMINO",
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(18.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.DeliveryDining,
-                                contentDescription = "En camino"
-                            )
+                            if (savingEstado) {
+                                CircularProgressIndicator(
+                                    color = PrimaryGreen,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.DeliveryDining,
+                                    contentDescription = "En camino",
+                                    tint = PrimaryGreen
+                                )
+                            }
                         }
 
                         Button(

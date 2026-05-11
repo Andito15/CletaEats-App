@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.Card
@@ -67,7 +68,7 @@ fun HomeScreen(
     onMisPedidos: () -> Unit,
     onPedidosRepartidor: () -> Unit,
     onLogout: () -> Unit
-) {
+){
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
 
@@ -103,7 +104,7 @@ private fun HomeDrawerScaffold(
     onMisPedidos: () -> Unit,
     onPedidosRepartidor: () -> Unit,
     onLogout: () -> Unit
-) {
+){
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val isDelivery = rol == "REPARTIDOR"
@@ -215,6 +216,7 @@ private fun HomeDrawerScaffold(
                         onClick = { closeAndGo(onDirecciones) },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
+
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -358,7 +360,7 @@ fun ClientHomeScreen(
     onDirecciones: () -> Unit,
     onMisPedidos: () -> Unit,
     modifier: Modifier = Modifier
-) {
+){
     Column(
         modifier = modifier
             .fillMaxSize()

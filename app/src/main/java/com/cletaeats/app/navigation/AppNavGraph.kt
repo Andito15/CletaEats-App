@@ -13,6 +13,7 @@ import com.cletaeats.app.ui.screens.client.ClientePedidosScreen
 import com.cletaeats.app.ui.screens.client.CombosScreen
 import com.cletaeats.app.ui.screens.client.FeedbackScreen
 import com.cletaeats.app.ui.screens.client.PedidoDetalleScreen
+import com.cletaeats.app.ui.screens.client.PedidoTrackingScreen
 import com.cletaeats.app.ui.screens.client.RestaurantesScreen
 import com.cletaeats.app.ui.screens.delivery.RepartidorPedidosScreen
 import com.cletaeats.app.ui.screens.home.DireccionFormScreen
@@ -61,10 +62,18 @@ fun AppNavGraph(
 
         composable(Routes.HOME) {
             HomeScreen(
-                onRestaurantes = { navController.navigate(Routes.RESTAURANTES) },
-                onDirecciones = { navController.navigate(Routes.DIRECCIONES) },
-                onMisPedidos = { navController.navigate(Routes.CLIENTE_PEDIDOS) },
-                onPedidosRepartidor = { navController.navigate(Routes.REPARTIDOR_PEDIDOS) },
+                onRestaurantes = {
+                    navController.navigate(Routes.RESTAURANTES)
+                },
+                onDirecciones = {
+                    navController.navigate(Routes.DIRECCIONES)
+                },
+                onMisPedidos = {
+                    navController.navigate(Routes.CLIENTE_PEDIDOS)
+                },
+                onPedidosRepartidor = {
+                    navController.navigate(Routes.REPARTIDOR_PEDIDOS)
+                },
                 onLogout = {
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
@@ -101,21 +110,31 @@ fun AppNavGraph(
 
         composable(
             route = Routes.COMBOS,
-            arguments = listOf(navArgument("restauranteId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("restauranteId") {
+                    type = NavType.LongType
+                }
+            )
         ) { backStackEntry ->
-            val restauranteId = backStackEntry.arguments?.getLong("restauranteId") ?: return@composable
+            val restauranteId = backStackEntry.arguments
+                ?.getLong("restauranteId")
+                ?: return@composable
 
             CombosScreen(
                 restauranteId = restauranteId,
                 onBack = { navController.popBackStack() },
-                onCheckout = { navController.navigate(Routes.CHECKOUT) }
+                onCheckout = {
+                    navController.navigate(Routes.CHECKOUT)
+                }
             )
         }
 
         composable(Routes.CHECKOUT) {
             CheckoutScreen(
                 onBack = { navController.popBackStack() },
-                onAddAddress = { navController.navigate(Routes.DIRECCION_FORM) },
+                onAddAddress = {
+                    navController.navigate(Routes.DIRECCION_FORM)
+                },
                 onPedidoCreado = { pedidoId ->
                     navController.navigate(Routes.pedidoDetalle(pedidoId)) {
                         popUpTo(Routes.RESTAURANTES)
@@ -138,13 +157,24 @@ fun AppNavGraph(
 
         composable(
             route = Routes.PEDIDO_DETALLE,
-            arguments = listOf(navArgument("pedidoId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("pedidoId") {
+                    type = NavType.LongType
+                }
+            )
         ) { backStackEntry ->
-            val pedidoId = backStackEntry.arguments?.getLong("pedidoId") ?: return@composable
+            val pedidoId = backStackEntry.arguments
+                ?.getLong("pedidoId")
+                ?: return@composable
 
             PedidoDetalleScreen(
                 pedidoId = pedidoId,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack()
+                },
+                onTracking = { id ->
+                    navController.navigate(Routes.pedidoTracking(id))
+                },
                 onFeedback = { id ->
                     navController.navigate(Routes.feedback(id))
                 }
@@ -152,21 +182,53 @@ fun AppNavGraph(
         }
 
         composable(
-            route = Routes.FEEDBACK,
-            arguments = listOf(navArgument("pedidoId") { type = NavType.LongType })
+            route = Routes.PEDIDO_TRACKING,
+            arguments = listOf(
+                navArgument("pedidoId") {
+                    type = NavType.LongType
+                }
+            )
         ) { backStackEntry ->
-            val pedidoId = backStackEntry.arguments?.getLong("pedidoId") ?: return@composable
+            val pedidoId = backStackEntry.arguments
+                ?.getLong("pedidoId")
+                ?: return@composable
+
+            PedidoTrackingScreen(
+                pedidoId = pedidoId,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = Routes.FEEDBACK,
+            arguments = listOf(
+                navArgument("pedidoId") {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val pedidoId = backStackEntry.arguments
+                ?.getLong("pedidoId")
+                ?: return@composable
 
             FeedbackScreen(
                 pedidoId = pedidoId,
-                onBack = { navController.popBackStack() },
-                onDone = { navController.popBackStack() }
+                onBack = {
+                    navController.popBackStack()
+                },
+                onDone = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(Routes.REPARTIDOR_PEDIDOS) {
             RepartidorPedidosScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack()
+                },
                 onDetail = { pedidoId ->
                     navController.navigate(Routes.pedidoDetalle(pedidoId))
                 }
