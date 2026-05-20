@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import com.cletaeats.app.data.model.PedidoEstadoRequest
 import com.cletaeats.app.data.model.PedidoResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toDeliveryMessage
+import com.cletaeats.app.data.remote.toUserMessage
 import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.components.CletaScaffold
 import com.cletaeats.app.ui.components.ErrorState
@@ -91,7 +93,7 @@ fun PedidoDetalleScreen(
                     api.obtenerPedidoCliente(pedidoId)
                 }
             } catch (e: Exception) {
-                error = e.message ?: "No se pudo cargar el pedido."
+                error = e.toUserMessage()
             } finally {
                 loading = false
             }
@@ -111,7 +113,7 @@ fun PedidoDetalleScreen(
 
                 pedido = api.obtenerPedidoRepartidor(pedidoId)
             } catch (e: Exception) {
-                error = e.message ?: "No se pudo actualizar el estado."
+                error = e.toDeliveryMessage()
             } finally {
                 savingEstado = false
             }

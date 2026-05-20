@@ -1,13 +1,15 @@
 package com.cletaeats.app.ui.screens.auth
 
 import android.util.Patterns
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,18 +20,18 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,25 +45,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.cletaeats.app.R
 import com.cletaeats.app.data.model.RegisterRequest
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toUserMessage
 import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.PrimaryGreen
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private fun validarRol(rol: String): String? {
-    if (rol != "CLIENTE" && rol != "REPARTIDOR") return "Rol inválido"
-    return null
-}
-
 private fun validarNombre(nombre: String): String? {
-    if (nombre.trim().isBlank()) return "Nombre obligatorio"
-    if (nombre.trim().length < 3) return "Muy corto"
+    val limpio = nombre.trim()
+    if (limpio.isBlank()) return "Nombre obligatorio"
+    if (limpio.length < 3) return "Muy corto"
     return null
 }
 
@@ -84,7 +83,6 @@ private fun validarCorreo(correo: String): String? {
 private fun validarTelefono(telefono: String): String? {
     val limpio = telefono.trim()
     if (limpio.isBlank()) return "Teléfono obligatorio"
-    if (limpio.contains(" ")) return "Sin espacios"
     if (limpio.length < 8) return "Teléfono inválido"
     return null
 }
@@ -95,13 +93,15 @@ private fun validarPassword(password: String): String? {
     return null
 }
 
-private fun validarConfirmPassword(password: String, confirmPassword: String): String? {
-    if (confirmPassword.isBlank()) return "Confirmá"
+private fun validarConfirmPassword(
+    password: String,
+    confirmPassword: String
+): String? {
+    if (confirmPassword.isBlank()) return "Confirmá la contraseña"
     if (password != confirmPassword) return "No coincide"
     return null
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     onBackToLogin: () -> Unit
@@ -110,7 +110,6 @@ fun RegisterScreen(
     val apiService = remember { RetrofitProvider.createApiService(context) }
     val scope = rememberCoroutineScope()
 
-    var expanded by remember { mutableStateOf(false) }
     var rol by remember { mutableStateOf("CLIENTE") }
     var nombre by remember { mutableStateOf("") }
     var cedula by remember { mutableStateOf("") }
@@ -118,19 +117,44 @@ fun RegisterScreen(
     var telefono by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
-    var rolError by remember { mutableStateOf<String?>(null) }
     var nombreError by remember { mutableStateOf<String?>(null) }
     var cedulaError by remember { mutableStateOf<String?>(null) }
     var correoError by remember { mutableStateOf<String?>(null) }
     var telefonoError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
+
     var generalError by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+
+    fun validarTodo(): Boolean {
+        val nombreVal = validarNombre(nombre)
+        val cedulaVal = validarCedula(cedula)
+        val correoVal = validarCorreo(correo)
+        val telefonoVal = validarTelefono(telefono)
+        val passwordVal = validarPassword(password)
+        val confirmVal = validarConfirmPassword(password, confirmPassword)
+
+        nombreError = nombreVal
+        cedulaError = cedulaVal
+        correoError = correoVal
+        telefonoError = telefonoVal
+        passwordError = passwordVal
+        confirmPasswordError = confirmVal
+
+        return listOf(
+            nombreVal,
+            cedulaVal,
+            correoVal,
+            telefonoVal,
+            passwordVal,
+            confirmVal
+        ).all { it == null }
+    }
 
     Column(
         modifier = Modifier
@@ -143,7 +167,10 @@ fun RegisterScreen(
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp)
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White
+            )
         ) {
             Column(
                 modifier = Modifier
@@ -151,56 +178,44 @@ fun RegisterScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Registro",
-                    color = PrimaryGreen,
-                    fontSize = 22.sp
+                Image(
+                    painter = painterResource(id = R.drawable.logo_completo),
+                    contentDescription = "CletaEats",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = rol,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        label = { Text("Rol") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    RoleButton(
+                        selected = rol == "CLIENTE",
+                        icon = Icons.Rounded.Person,
+                        contentDescription = "Cliente",
+                        onClick = {
+                            rol = "CLIENTE"
+                            generalError = null
                         },
-                        isError = rolError != null,
-                        singleLine = true
+                        modifier = Modifier.weight(1f)
                     )
 
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        listOf("CLIENTE", "REPARTIDOR").forEach { opcion ->
-                            DropdownMenuItem(
-                                text = { Text(opcion) },
-                                onClick = {
-                                    rol = opcion
-                                    rolError = validarRol(opcion)
-                                    generalError = null
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
+                    RoleButton(
+                        selected = rol == "REPARTIDOR",
+                        icon = Icons.Rounded.DeliveryDining,
+                        contentDescription = "Repartidor",
+                        onClick = {
+                            rol = "REPARTIDOR"
+                            generalError = null
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                if (rolError != null) {
-                    Text(rolError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 OutlinedTextField(
                     value = nombre,
@@ -212,35 +227,37 @@ fun RegisterScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Nombre") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.AccountCircle,
+                            contentDescription = null
+                        )
                     },
-                    isError = nombreError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = nombreError != null
                 )
-                if (nombreError != null) {
-                    Text(nombreError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(nombreError)
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = cedula,
                     onValueChange = {
-                        cedula = it
-                        cedulaError = validarCedula(it)
+                        cedula = it.filter { char -> char.isDigit() }.take(12)
+                        cedulaError = validarCedula(cedula)
                         generalError = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Cédula") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.Badge,
+                            contentDescription = null
+                        )
                     },
-                    isError = cedulaError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = cedulaError != null
                 )
-                if (cedulaError != null) {
-                    Text(cedulaError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(cedulaError)
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -254,35 +271,37 @@ fun RegisterScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Correo") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.AccountCircle,
+                            contentDescription = null
+                        )
                     },
-                    isError = correoError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = correoError != null
                 )
-                if (correoError != null) {
-                    Text(correoError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(correoError)
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = telefono,
                     onValueChange = {
-                        telefono = it
-                        telefonoError = validarTelefono(it)
+                        telefono = it.filter { char -> char.isDigit() }.take(8)
+                        telefonoError = validarTelefono(telefono)
                         generalError = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Teléfono") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.Phone,
+                            contentDescription = null
+                        )
                     },
-                    isError = telefonoError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = telefonoError != null
                 )
-                if (telefonoError != null) {
-                    Text(telefonoError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(telefonoError)
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -297,7 +316,10 @@ fun RegisterScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Contraseña") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Lock, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null
+                        )
                     },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -307,7 +329,7 @@ fun RegisterScreen(
                                 } else {
                                     Icons.Filled.Visibility
                                 },
-                                contentDescription = if (passwordVisible) "Ocultar" else "Mostrar"
+                                contentDescription = null
                             )
                         }
                     },
@@ -316,12 +338,10 @@ fun RegisterScreen(
                     } else {
                         PasswordVisualTransformation()
                     },
-                    isError = passwordError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = passwordError != null
                 )
-                if (passwordError != null) {
-                    Text(passwordError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(passwordError)
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -335,7 +355,10 @@ fun RegisterScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Confirmar") },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Lock, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null
+                        )
                     },
                     trailingIcon = {
                         IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
@@ -345,7 +368,7 @@ fun RegisterScreen(
                                 } else {
                                     Icons.Filled.Visibility
                                 },
-                                contentDescription = if (confirmPasswordVisible) "Ocultar" else "Mostrar"
+                                contentDescription = null
                             )
                         }
                     },
@@ -354,86 +377,52 @@ fun RegisterScreen(
                     } else {
                         PasswordVisualTransformation()
                     },
-                    isError = confirmPasswordError != null,
-                    singleLine = true
+                    singleLine = true,
+                    isError = confirmPasswordError != null
                 )
-                if (confirmPasswordError != null) {
-                    Text(confirmPasswordError!!, color = Color.Red, modifier = Modifier.fillMaxWidth())
-                }
+                ErrorText(confirmPasswordError)
 
                 if (generalError != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = generalError!!,
+                        text = generalError.orEmpty(),
                         color = Color.Red,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                if (successMessage != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = successMessage!!,
-                        color = PrimaryGreen,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = {
-                        val rolVal = validarRol(rol)
-                        val nombreVal = validarNombre(nombre)
-                        val cedulaVal = validarCedula(cedula)
-                        val correoVal = validarCorreo(correo)
-                        val telefonoVal = validarTelefono(telefono)
-                        val passwordVal = validarPassword(password)
-                        val confirmVal = validarConfirmPassword(password, confirmPassword)
-
-                        rolError = rolVal
-                        nombreError = nombreVal
-                        cedulaError = cedulaVal
-                        correoError = correoVal
-                        telefonoError = telefonoVal
-                        passwordError = passwordVal
-                        confirmPasswordError = confirmVal
                         generalError = null
-                        successMessage = null
 
-                        if (
-                            rolVal != null ||
-                            nombreVal != null ||
-                            cedulaVal != null ||
-                            correoVal != null ||
-                            telefonoVal != null ||
-                            passwordVal != null ||
-                            confirmVal != null
-                        ) return@Button
+                        if (!validarTodo()) return@Button
 
                         scope.launch {
                             loading = true
+
                             try {
                                 val response = apiService.register(
                                     RegisterRequest(
                                         rol = rol,
                                         nombre = nombre.trim(),
                                         cedula = cedula.trim(),
-                                        correo = correo.trim(),
+                                        correo = correo.trim().lowercase(),
                                         telefono = telefono.trim(),
                                         password = password
                                     )
                                 )
 
                                 if (response.success) {
-                                    successMessage = response.message.ifBlank { "Cuenta creada" }
-                                    delay(1200)
                                     onBackToLogin()
                                 } else {
-                                    generalError = response.message
+                                    generalError = response.message.ifBlank {
+                                        "No se pudo crear la cuenta."
+                                    }
                                 }
                             } catch (e: Exception) {
-                                generalError = e.message ?: "Error de conexión"
+                                generalError = e.toUserMessage()
                             } finally {
                                 loading = false
                             }
@@ -455,14 +444,17 @@ fun RegisterScreen(
                     } else {
                         Icon(
                             imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "Registrar"
+                            contentDescription = "Crear cuenta"
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(onClick = onBackToLogin) {
+                TextButton(
+                    onClick = onBackToLogin,
+                    enabled = !loading
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.ArrowBack,
                         contentDescription = "Volver"
@@ -470,5 +462,43 @@ fun RegisterScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RoleButton(
+    selected: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) PrimaryGreen else BackgroundSoft,
+            contentColor = if (selected) Color.White else PrimaryGreen
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription
+        )
+    }
+}
+
+@Composable
+private fun ErrorText(
+    message: String?
+) {
+    if (message != null) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = message,
+            color = Color.Red,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

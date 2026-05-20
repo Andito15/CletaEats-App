@@ -13,12 +13,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddLocationAlt
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RemoveShoppingCart
+import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,7 +51,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cletaeats.app.data.model.ClienteDireccionResponse
 import com.cletaeats.app.data.model.PedidoCreateRequest
+import com.cletaeats.app.data.model.RestauranteResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toPedidoMessage
+import com.cletaeats.app.data.remote.toUserMessage
+import com.cletaeats.app.domain.cart.CartRestaurantGroup
 import com.cletaeats.app.domain.cart.CartState
 import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.components.CletaScaffold
@@ -101,7 +107,7 @@ fun CheckoutScreen(
                 selectedDireccion = response.firstOrNull { it.esPredeterminada }
                     ?: response.firstOrNull()
             } catch (e: Exception) {
-                error = e.message ?: "No se pudieron cargar las direcciones."
+                error = e.toUserMessage()
             } finally {
                 loading = false
             }
@@ -175,25 +181,29 @@ fun CheckoutScreen(
                 }
 
                 item {
-                    val distancia = selectedDireccion?.let { calcularDistanciaEntrega(it) } ?: 3.0
+                    val direccion = selectedDireccion
+                    val groups = CartState.groups()
 
-                    TotalsCard(distanciaKm = distancia)
+                    TotalsCard(
+                        groups = groups,
+                        direccion = direccion
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
                         onClick = {
-                            val direccion = selectedDireccion
+                            val selected = selectedDireccion
 
-                            if (direccion == null) {
+                            if (selected == null) {
                                 error = "Seleccioná una dirección."
                                 return@Button
                             }
 
-                            val pedidoItems = CartState.toPedidoItems()
+                            val restaurantGroups = CartState.groups()
 
-                            if (pedidoItems.isEmpty()) {
-                                error = "El pedido no tiene combos válidos."
+                            if (restaurantGroups.isEmpty()) {
+                                error = "El carrito no tiene combos válidos."
                                 return@Button
                             }
 
@@ -202,22 +212,35 @@ fun CheckoutScreen(
                                 error = null
 
                                 try {
-                                    val pedido = api.crearPedido(
-                                        PedidoCreateRequest(
-                                            direccionEntrega = direccion.direccionTexto,
-                                            distanciaKm = distancia,
-                                            observaciones = observaciones.ifBlank { null },
-                                            items = pedidoItems
+                                    val pedidosCreados = restaurantGroups.map { group ->
+                                        val distancia = calcularDistanciaEntrega(
+                                            direccion = selected,
+                                            restaurante = group.restaurante
                                         )
-                                    )
+
+                                        api.crearPedido(
+                                            PedidoCreateRequest(
+                                                direccionEntrega = selected.direccionTexto,
+                                                distanciaKm = distancia,
+                                                observaciones = observaciones.ifBlank { null },
+                                                items = group.toPedidoItems()
+                                            )
+                                        )
+                                    }
 
                                     CartState.clear()
 
-                                    pedido.pedidoId?.let { pedidoId ->
-                                        onPedidoCreado(pedidoId)
+                                    val primerPedidoId = pedidosCreados
+                                        .firstOrNull()
+                                        ?.pedidoId
+
+                                    if (primerPedidoId != null) {
+                                        onPedidoCreado(primerPedidoId)
+                                    } else {
+                                        error = "Se creó el pedido, pero no se recibió el ID."
                                     }
                                 } catch (e: Exception) {
-                                    error = e.message ?: "No se pudo crear el pedido."
+                                    error = e.toPedidoMessage()
                                 } finally {
                                     saving = false
                                 }
@@ -244,7 +267,13 @@ fun CheckoutScreen(
                                 contentDescription = null
                             )
 
-                            Text("  Confirmar")
+                            Text(
+                                text = if (CartState.totalRestaurantes > 1) {
+                                    "  Confirmar ${CartState.totalRestaurantes} pedidos"
+                                } else {
+                                    "  Confirmar"
+                                }
+                            )
                         }
                     }
 
@@ -280,6 +309,8 @@ private fun SectionTitle(
 
 @Composable
 private fun CartSummaryCard() {
+    val groups = CartState.groups()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
@@ -289,7 +320,7 @@ private fun CartSummaryCard() {
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -301,67 +332,144 @@ private fun CartSummaryCard() {
                     tint = PrimaryGreen
                 )
 
-                Text(
-                    text = CartState.restaurante?.nombre ?: "Pedido",
-                    color = PrimaryDeep,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Carrito",
+                        color = PrimaryDeep,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "${CartState.totalItems} combo(s) · ${CartState.totalRestaurantes} restaurante(s)",
+                        color = TextSoft,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             Divider()
 
-            CartState.items.forEach { item ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = item.combo.nombre,
-                            color = PrimaryDeep,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+            groups.forEach { group ->
+                RestaurantGroupSummary(group = group)
 
-                        Text(
-                            text = "${item.cantidad} × ${money(item.combo.precio)}",
-                            color = TextSoft,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { CartState.decrease(item.combo.id) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Remove,
-                            contentDescription = "Quitar",
-                            tint = PrimaryGreen
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { CartState.add(item.combo) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "Agregar",
-                            tint = PrimaryGreen
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { CartState.remove(item.combo.id) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Delete,
-                            contentDescription = "Eliminar",
-                            tint = DangerRed
-                        )
-                    }
+                if (group != groups.last()) {
+                    Divider()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantGroupSummary(
+    group: CartRestaurantGroup
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Restaurant,
+                contentDescription = null,
+                tint = PrimaryGreen
+            )
+
+            Text(
+                text = "  ${group.restaurante.nombre}",
+                color = PrimaryDeep,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        group.items.forEach { item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = item.combo.nombre,
+                        color = PrimaryDeep,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = "${item.cantidad} × ${money(item.combo.precio)}",
+                        color = TextSoft,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        CartState.decrease(
+                            comboId = item.combo.id,
+                            restauranteId = item.restaurante.id
+                        )
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Remove,
+                        contentDescription = "Quitar",
+                        tint = PrimaryGreen
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        CartState.add(
+                            combo = item.combo,
+                            restaurante = item.restaurante
+                        )
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "Agregar",
+                        tint = PrimaryGreen
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        CartState.remove(
+                            comboId = item.combo.id,
+                            restauranteId = item.restaurante.id
+                        )
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = "Eliminar",
+                        tint = DangerRed
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Subtotal restaurante",
+                modifier = Modifier.weight(1f),
+                color = TextSoft,
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                text = money(group.subtotal),
+                color = PrimaryGreen,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -462,10 +570,23 @@ private fun AddressOption(
 
 @Composable
 private fun TotalsCard(
-    distanciaKm: Double
+    groups: List<CartRestaurantGroup>,
+    direccion: ClienteDireccionResponse?
 ) {
-    val costoTransporte = distanciaKm * 1000.0
-    val base = CartState.subtotal + costoTransporte
+    val subtotal = groups.sumOf { it.subtotal }
+
+    val transporte = if (direccion == null) {
+        groups.size * 3000.0
+    } else {
+        groups.sumOf { group ->
+            calcularDistanciaEntrega(
+                direccion = direccion,
+                restaurante = group.restaurante
+            ) * 1000.0
+        }
+    }
+
+    val base = subtotal + transporte
     val iva = base * 0.13
     val total = base + iva
 
@@ -490,17 +611,29 @@ private fun TotalsCard(
                     tint = PrimaryGreen
                 )
 
-                Text(
-                    text = "Resumen",
-                    color = PrimaryDeep,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Resumen",
+                        color = PrimaryDeep,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = if (groups.size > 1) {
+                            "Se crearán ${groups.size} pedidos separados."
+                        } else {
+                            "Se creará 1 pedido."
+                        },
+                        color = TextSoft,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             Divider()
 
-            TotalRow("Subtotal", CartState.subtotal)
-            TotalRow("Transporte aprox.", costoTransporte)
+            TotalRow("Subtotal", subtotal)
+            TotalRow("Transporte aprox.", transporte)
             TotalRow("IVA 13%", iva)
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -539,12 +672,11 @@ private fun TotalRow(
 }
 
 private fun calcularDistanciaEntrega(
-    direccion: ClienteDireccionResponse
+    direccion: ClienteDireccionResponse,
+    restaurante: RestauranteResponse
 ): Double {
-    val restaurante = CartState.restaurante
-
-    val restLat = restaurante?.latitud
-    val restLon = restaurante?.longitud
+    val restLat = restaurante.latitud
+    val restLon = restaurante.longitud
     val dirLat = direccion.latitud
     val dirLon = direccion.longitud
 

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.cletaeats.app.data.model.UbicacionRepartidorRequest
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toDeliveryMessage
 import com.cletaeats.app.ui.theme.DangerRed
 import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
@@ -304,7 +305,7 @@ private fun DeliveryLocationUpdates(
             }.onSuccess {
                 status = "Ubicación enviada al cliente."
             }.onFailure {
-                status = "No se pudo enviar ubicación: ${it.message ?: "error"}"
+                status = it.toDeliveryMessage()
             }
         }
     }

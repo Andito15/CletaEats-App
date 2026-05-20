@@ -144,4 +144,12 @@ interface ApiService {
     suspend fun obtenerTrackingPedido(
         @Path("pedidoId") pedidoId: Long
     ): UbicacionRepartidorResponse
+
+    @GET("api/repartidores/pedidos/disponibles")
+    suspend fun listarPedidosDisponiblesRepartidor(): List<PedidoResponse>
+
+    @PATCH("api/repartidores/pedidos/{pedidoId}/aceptar")
+    suspend fun aceptarPedidoRepartidor(
+        @Path("pedidoId") pedidoId: Long
+    ): PedidoResponse
 }

@@ -1,11 +1,14 @@
 package com.cletaeats.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.screens.auth.LoginScreen
 import com.cletaeats.app.ui.screens.auth.RegisterScreen
 import com.cletaeats.app.ui.screens.client.CheckoutScreen
@@ -19,12 +22,15 @@ import com.cletaeats.app.ui.screens.delivery.RepartidorPedidosScreen
 import com.cletaeats.app.ui.screens.home.DireccionFormScreen
 import com.cletaeats.app.ui.screens.home.DireccionesScreen
 import com.cletaeats.app.ui.screens.home.HomeScreen
+import com.cletaeats.app.ui.screens.profile.PerfilScreen
 import com.cletaeats.app.ui.screens.splash.SplashScreen
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController
 ) {
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH
@@ -41,9 +47,11 @@ fun AppNavGraph(
 
         composable(Routes.LOGIN) {
             LoginScreen(
-                onLoginSuccess = {
+                onLoginSuccess = { rol ->
                     navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.LOGIN) { inclusive = true }
+                        popUpTo(Routes.LOGIN) {
+                            inclusive = true
+                        }
                     }
                 },
                 onGoToRegister = {
@@ -62,11 +70,14 @@ fun AppNavGraph(
 
         composable(Routes.HOME) {
             HomeScreen(
-                onRestaurantes = {
-                    navController.navigate(Routes.RESTAURANTES)
+                onOpenRestaurant = { restauranteId ->
+                    navController.navigate(Routes.combos(restauranteId))
                 },
-                onDirecciones = {
-                    navController.navigate(Routes.DIRECCIONES)
+                onCart = {
+                    navController.navigate(Routes.CHECKOUT)
+                },
+                onPerfil = {
+                    navController.navigate(Routes.PERFIL)
                 },
                 onMisPedidos = {
                     navController.navigate(Routes.CLIENTE_PEDIDOS)
@@ -78,6 +89,17 @@ fun AppNavGraph(
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(Routes.PERFIL) {
+            PerfilScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onDirecciones = {
+                    navController.navigate(Routes.DIRECCIONES)
                 }
             )
         }
@@ -96,17 +118,6 @@ fun AppNavGraph(
             )
         }
 
-        composable(Routes.RESTAURANTES) {
-            RestaurantesScreen(
-                onBack = { navController.popBackStack() },
-                onOpenRestaurant = { restauranteId ->
-                    navController.navigate(Routes.combos(restauranteId))
-                },
-                onCart = {
-                    navController.navigate(Routes.CHECKOUT)
-                }
-            )
-        }
 
         composable(
             route = Routes.COMBOS,

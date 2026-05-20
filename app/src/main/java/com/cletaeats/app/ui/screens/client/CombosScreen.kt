@@ -1,6 +1,8 @@
 package com.cletaeats.app.ui.screens.client
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -22,11 +27,9 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,10 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.cletaeats.app.data.model.ComboResponse
 import com.cletaeats.app.data.model.RestauranteResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
@@ -49,7 +55,6 @@ import com.cletaeats.app.domain.cart.CartState
 import com.cletaeats.app.ui.components.CletaScaffold
 import com.cletaeats.app.ui.components.EmptyState
 import com.cletaeats.app.ui.components.ErrorState
-import com.cletaeats.app.ui.components.IconBubble
 import com.cletaeats.app.ui.components.LoadingBox
 import com.cletaeats.app.ui.components.money
 import com.cletaeats.app.ui.theme.PrimaryDeep
@@ -86,6 +91,7 @@ fun CombosScreen(
 
                 restaurante = restauranteResponse
                 combos = combosResponse
+
                 CartState.setRestaurant(restauranteResponse)
             } catch (e: Exception) {
                 error = e.message ?: "No se pudieron cargar los combos."
@@ -146,26 +152,41 @@ fun CombosScreen(
                 modifier = modifier.fillMaxSize()
             )
 
-            else -> LazyColumn(
+            else -> LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
+                item(
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
                     restaurante?.let {
                         RestauranteHeader(restaurante = it)
                     }
                 }
 
-                items(
-                    items = combos,
-                    key = { combo -> combo.id ?: combo.numeroCombo.toLong() }
-                ) { combo ->
-                    ComboCard(combo = combo)
+                val restauranteActual = restaurante
+
+                if (restauranteActual != null) {
+                    items(
+                        items = combos,
+                        key = { combo ->
+                            "${restauranteActual.id}-${combo.id ?: combo.numeroCombo}"
+                        }
+                    ) { combo ->
+                        ComboCard(
+                            restaurante = restauranteActual,
+                            combo = combo
+                        )
+                    }
                 }
 
-                item {
+                item(
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
                     Spacer(modifier = Modifier.height(20.dp))
                 }
             }
@@ -181,47 +202,63 @@ private fun RestauranteHeader(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
-            containerColor = PrimaryGreen
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
         )
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = restaurante.nombre,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
+        Column {
+            FoodImage(
+                imageUrl = restaurante.imagenUrl,
+                fallbackIcon = Icons.Rounded.RestaurantMenu,
+                height = 150
             )
 
-            Text(
-                text = restaurante.tipoComida,
-                color = Color.White.copy(alpha = 0.86f),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = restaurante.nombre,
+                    color = PrimaryDeep,
+                    fontWeight = FontWeight.Bold
+                )
 
-            Text(
-                text = restaurante.direccion,
-                color = Color.White.copy(alpha = 0.74f),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+                Text(
+                    text = restaurante.tipoComida,
+                    color = PrimaryGreen,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = restaurante.direccion,
+                    color = TextSoft,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ComboCard(
+    restaurante: RestauranteResponse,
     combo: ComboResponse
 ) {
     val cantidad = CartState.items
-        .firstOrNull { item -> item.combo.id == combo.id }
+        .firstOrNull { item ->
+            item.restaurante.id == restaurante.id &&
+                    item.combo.id == combo.id
+        }
         ?.cantidad ?: 0
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
         ),
@@ -229,25 +266,22 @@ private fun ComboCard(
             defaultElevation = 2.dp
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconBubble(
-                icon = Icons.Rounded.Fastfood
+        Column {
+            FoodImage(
+                imageUrl = combo.imagenUrl,
+                fallbackIcon = Icons.Rounded.Fastfood,
+                height = 105
             )
 
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Combo ${combo.numeroCombo}",
                     color = PrimaryGreen,
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelLarge
+                    style = MaterialTheme.typography.labelSmall
                 )
 
                 Text(
@@ -261,52 +295,92 @@ private fun ComboCard(
                 Text(
                     text = combo.descripcion,
                     color = TextSoft,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = money(combo.precio),
                     color = PrimaryGreen,
                     fontWeight = FontWeight.Bold
                 )
-            }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilledIconButton(
-                    onClick = { CartState.add(combo) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Agregar"
-                    )
-                }
+                    if (cantidad > 0) {
+                        IconButton(
+                            onClick = {
+                                CartState.decrease(
+                                    comboId = combo.id,
+                                    restauranteId = restaurante.id
+                                )
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Remove,
+                                contentDescription = "Quitar",
+                                tint = PrimaryGreen
+                            )
+                        }
 
-                if (cantidad > 0) {
-                    Text(
-                        text = cantidad.toString(),
-                        color = PrimaryDeep,
-                        fontWeight = FontWeight.Bold
-                    )
+                        Text(
+                            text = cantidad.toString(),
+                            color = PrimaryDeep,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                    OutlinedButton(
-                        onClick = { CartState.decrease(combo.id) },
-                        shape = RoundedCornerShape(50)
+                    IconButton(
+                        onClick = {
+                            CartState.add(
+                                combo = combo,
+                                restaurante = restaurante
+                            )
+                        }
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Remove,
-                            contentDescription = "Quitar",
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "Agregar",
                             tint = PrimaryGreen
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FoodImage(
+    imageUrl: String?,
+    fallbackIcon: ImageVector,
+    height: Int
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height.dp)
+            .background(PrimaryGreen.copy(alpha = 0.10f)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(
+                imageVector = fallbackIcon,
+                contentDescription = null,
+                tint = PrimaryGreen,
+                modifier = Modifier.size(46.dp)
+            )
         }
     }
 }

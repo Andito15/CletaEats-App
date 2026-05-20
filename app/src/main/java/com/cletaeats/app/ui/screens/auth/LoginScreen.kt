@@ -64,9 +64,9 @@ private fun validarPasswordManual(password: String): String? {
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (String) -> Unit,
     onGoToRegister: () -> Unit
-) {
+){
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     val apiService = remember { RetrofitProvider.createApiService(context) }
@@ -241,7 +241,7 @@ fun LoginScreen(
                                         rol = rolApp
                                     )
 
-                                    onLoginSuccess()
+                                    onLoginSuccess(rolApp)
                                 } else {
                                     generalError = response.message.ifBlank { "No se pudo iniciar sesión" }
                                 }

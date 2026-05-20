@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,6 +22,8 @@ import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.GpsFixed
 import androidx.compose.material.icons.rounded.LocationOff
 import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,16 +43,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.cletaeats.app.data.model.UbicacionRepartidorResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toTrackingMessage
 import com.cletaeats.app.ui.components.CletaScaffold
 import com.cletaeats.app.ui.components.EmptyState
 import com.cletaeats.app.ui.components.LoadingBox
 import com.cletaeats.app.ui.components.cleanStateLabel
+import com.cletaeats.app.ui.theme.DangerRed
 import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
 import com.cletaeats.app.ui.theme.TextSoft
@@ -71,6 +77,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Composable
 fun PedidoTrackingScreen(
@@ -99,10 +107,21 @@ fun PedidoTrackingScreen(
         mutableStateOf(hasLocationPermission())
     }
 
-    var tracking by remember { mutableStateOf<UbicacionRepartidorResponse?>(null) }
-    var currentLocation by remember { mutableStateOf<Location?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var tracking by remember {
+        mutableStateOf<UbicacionRepartidorResponse?>(null)
+    }
+
+    var clientLocation by remember {
+        mutableStateOf<Location?>(null)
+    }
+
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    var error by remember {
+        mutableStateOf<String?>(null)
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -119,7 +138,7 @@ fun PedidoTrackingScreen(
                     tracking = api.obtenerTrackingPedido(pedidoId)
                     error = null
                 } catch (e: Exception) {
-                    error = e.message ?: "No se pudo obtener la ubicación del repartidor."
+                    error = e.toTrackingMessage()
                 } finally {
                     loading = false
                 }
@@ -135,7 +154,9 @@ fun PedidoTrackingScreen(
 
     if (hasPermission) {
         ClientLocationTracker(
-            onLocationChanged = { currentLocation = it }
+            onLocationChanged = { location ->
+                clientLocation = location
+            }
         )
     }
 
@@ -155,7 +176,7 @@ fun PedidoTrackingScreen(
 
             !hasPermission -> LocationPermissionCard(
                 modifier = modifier.fillMaxSize(),
-                onRequest = {
+                onRequestPermission = {
                     permissionLauncher.launch(
                         arrayOf(
                             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -167,7 +188,7 @@ fun PedidoTrackingScreen(
 
             else -> TrackingMap(
                 tracking = tracking!!,
-                clientLocation = currentLocation,
+                clientLocation = clientLocation,
                 modifier = modifier.fillMaxSize()
             )
         }
@@ -203,6 +224,14 @@ private fun ClientLocationTracker(
         }
     }
 
+    LaunchedEffect(Unit) {
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                onLocationChanged(location)
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
@@ -219,25 +248,31 @@ private fun ClientLocationTracker(
 @Composable
 private fun LocationPermissionCard(
     modifier: Modifier = Modifier,
-    onRequest: () -> Unit
+    onRequestPermission: () -> Unit
 ) {
     Box(
-        modifier = modifier.padding(16.dp),
+        modifier = modifier.padding(18.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(26.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.White
             )
         ) {
             Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                Icon(
+                    imageVector = Icons.Rounded.LocationOff,
+                    contentDescription = null,
+                    tint = DangerRed
+                )
+
                 Text(
-                    text = "Permiso de ubicación requerido",
+                    text = "Ubicación requerida",
                     color = PrimaryDeep,
                     fontWeight = FontWeight.Bold
                 )
@@ -249,7 +284,7 @@ private fun LocationPermissionCard(
                 )
 
                 Button(
-                    onClick = onRequest,
+                    onClick = onRequestPermission,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -281,7 +316,10 @@ private fun TrackingMap(
     )
 
     val clientePosition = clientLocation?.let {
-        LatLng(it.latitude, it.longitude)
+        LatLng(
+            it.latitude,
+            it.longitude
+        )
     }
 
     val centerPosition = if (clientePosition != null) {
@@ -294,7 +332,10 @@ private fun TrackingMap(
     }
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(centerPosition, 14f)
+        position = CameraPosition.fromLatLngZoom(
+            centerPosition,
+            if (clientePosition != null) 14f else 16f
+        )
     }
 
     val repartidorMarkerState = rememberMarkerState(
@@ -406,9 +447,18 @@ private fun TrackingInfoCard(
     distanciaRestanteKm: Float,
     modifier: Modifier = Modifier
 ) {
+    val etaMin = if (distanciaRestanteKm > 0f) {
+        max(
+            1,
+            ((distanciaRestanteKm / 22f) * 60f).roundToInt()
+        )
+    } else {
+        null
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
         ),
@@ -418,7 +468,7 @@ private fun TrackingInfoCard(
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
@@ -436,51 +486,75 @@ private fun TrackingInfoCard(
                 )
             }
 
-            Text(
-                text = "Estado: ${cleanStateLabel(tracking.estadoPedido ?: "EN_CAMINO")}",
-                color = TextSoft,
-                style = MaterialTheme.typography.bodySmall
+            InfoText(
+                icon = Icons.Rounded.Route,
+                text = "Estado: ${cleanStateLabel(tracking.estadoPedido ?: "EN_CAMINO")}"
             )
 
-            Text(
-                text = "Última actualización: ${tracking.ultimaUbicacionEn ?: "reciente"}",
-                color = TextSoft,
-                style = MaterialTheme.typography.bodySmall
-            )
+            tracking.ultimaUbicacionEn?.let {
+                InfoText(
+                    icon = Icons.Rounded.GpsFixed,
+                    text = "Última actualización: $it"
+                )
+            }
 
             tracking.precisionMetros?.let {
+                InfoText(
+                    icon = Icons.Rounded.GpsFixed,
+                    text = "Precisión repartidor: ${"%.1f".format(it)} m"
+                )
+            }
+
+            if (clientLocation != null) {
+                InfoText(
+                    icon = Icons.Rounded.Place,
+                    text = "Distancia restante aprox.: ${"%.2f".format(distanciaRestanteKm)} km"
+                )
+
+                etaMin?.let {
+                    Text(
+                        text = "Llegada estimada: $it min",
+                        color = PrimaryGreen,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
                 Text(
-                    text = "Precisión repartidor: ${"%.1f".format(it)} m",
+                    text = "Obteniendo tu ubicación...",
                     color = TextSoft,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            if (clientLocation != null) {
-                Text(
-                    text = "Distancia restante aprox.: ${"%.2f".format(distanciaRestanteKm)} km",
-                    color = PrimaryGreen,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.GpsFixed,
-                    contentDescription = null,
-                    tint = PrimaryGreen
-                )
-
-                Text(
-                    text = "  Línea en vivo repartidor → vos",
-                    color = PrimaryGreen,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            Text(
+                text = "Actualizando cada 3 segundos",
+                color = PrimaryGreen,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
+    }
+}
+
+@Composable
+private fun InfoText(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TextSoft
+        )
+
+        Text(
+            text = "  $text",
+            color = TextSoft,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
