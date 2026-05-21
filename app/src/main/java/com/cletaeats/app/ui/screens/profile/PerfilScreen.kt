@@ -1,6 +1,5 @@
 package com.cletaeats.app.ui.screens.profile
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,14 +13,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,8 +33,8 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,8 +47,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.cletaeats.app.domain.payment.PaymentCard
+import com.cletaeats.app.domain.payment.PaymentCardsManager
 import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.components.CletaScaffold
 import com.cletaeats.app.ui.theme.BackgroundSoft
@@ -62,25 +69,45 @@ fun PerfilScreen(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
 
-    val prefs = remember {
-        context.getSharedPreferences("cletaeats_payment", Context.MODE_PRIVATE)
-    }
-
     val nombre = sessionManager.getNombre().orEmpty()
     val correo = sessionManager.getCorreo().orEmpty()
     val rol = sessionManager.getRol().orEmpty()
     val clienteId = sessionManager.getClienteId()
     val repartidorId = sessionManager.getRepartidorId()
 
-    var tarjetaUltimos4 by remember {
-        mutableStateOf(prefs.getString("tarjetaUltimos4", "").orEmpty())
+    var tarjetas by remember {
+        mutableStateOf(PaymentCardsManager.getCards(context))
     }
 
-    var tarjetaInput by remember {
-        mutableStateOf(tarjetaUltimos4)
+    var showCardForm by remember {
+        mutableStateOf(false)
     }
 
-    var mensaje by remember {
+    var numeroTarjeta by remember {
+        mutableStateOf("")
+    }
+
+    var titularTarjeta by remember {
+        mutableStateOf("")
+    }
+
+    var mesTarjeta by remember {
+        mutableStateOf("")
+    }
+
+    var anioTarjeta by remember {
+        mutableStateOf("")
+    }
+
+    var cvvTarjeta by remember {
+        mutableStateOf("")
+    }
+
+    var cvvVisible by remember {
+        mutableStateOf(false)
+    }
+
+    var mensajeTarjeta by remember {
         mutableStateOf<String?>(null)
     }
 
@@ -101,7 +128,9 @@ fun PerfilScreen(
 
             item {
                 ProfileHeaderCard(
-                    nombre = nombre.ifBlank { if (rol == "REPARTIDOR") "Repartidor" else "Cliente" },
+                    nombre = nombre.ifBlank {
+                        if (rol == "REPARTIDOR") "Repartidor" else "Cliente"
+                    },
                     correo = correo,
                     rol = rol
                 )
@@ -111,16 +140,48 @@ fun PerfilScreen(
                 InfoCard(
                     title = "Información",
                     rows = buildList {
-                        add(ProfileRow(Icons.Rounded.Person, "Nombre", nombre.ifBlank { "No registrado" }))
-                        add(ProfileRow(Icons.Rounded.Email, "Correo", correo.ifBlank { "No registrado" }))
-                        add(ProfileRow(Icons.Rounded.AccountCircle, "Rol", rol.ifBlank { "Cliente" }))
+                        add(
+                            ProfileRow(
+                                icon = Icons.Rounded.Person,
+                                label = "Nombre",
+                                value = nombre.ifBlank { "No registrado" }
+                            )
+                        )
+
+                        add(
+                            ProfileRow(
+                                icon = Icons.Rounded.Email,
+                                label = "Correo",
+                                value = correo.ifBlank { "No registrado" }
+                            )
+                        )
+
+                        add(
+                            ProfileRow(
+                                icon = Icons.Rounded.AccountCircle,
+                                label = "Rol",
+                                value = rol.ifBlank { "Cliente" }
+                            )
+                        )
 
                         if (clienteId != null) {
-                            add(ProfileRow(Icons.Rounded.AccountCircle, "Cliente ID", clienteId.toString()))
+                            add(
+                                ProfileRow(
+                                    icon = Icons.Rounded.AccountCircle,
+                                    label = "Cliente ID",
+                                    value = clienteId.toString()
+                                )
+                            )
                         }
 
                         if (repartidorId != null) {
-                            add(ProfileRow(Icons.Rounded.AccountCircle, "Repartidor ID", repartidorId.toString()))
+                            add(
+                                ProfileRow(
+                                    icon = Icons.Rounded.AccountCircle,
+                                    label = "Repartidor ID",
+                                    value = repartidorId.toString()
+                                )
+                            )
                         }
                     }
                 )
@@ -134,38 +195,90 @@ fun PerfilScreen(
                 }
 
                 item {
-                    PaymentCard(
-                        tarjetaUltimos4 = tarjetaUltimos4,
-                        tarjetaInput = tarjetaInput,
-                        mensaje = mensaje,
-                        onInputChange = { value ->
-                            tarjetaInput = value
+                    PaymentCardsSection(
+                        tarjetas = tarjetas,
+                        showForm = showCardForm,
+                        numeroTarjeta = numeroTarjeta,
+                        titularTarjeta = titularTarjeta,
+                        mesTarjeta = mesTarjeta,
+                        anioTarjeta = anioTarjeta,
+                        cvvTarjeta = cvvTarjeta,
+                        cvvVisible = cvvVisible,
+                        mensaje = mensajeTarjeta,
+                        onToggleForm = {
+                            showCardForm = !showCardForm
+                            mensajeTarjeta = null
+                        },
+                        onNumeroChange = { value ->
+                            numeroTarjeta = value
+                                .filter { it.isDigit() }
+                                .take(19)
+
+                            mensajeTarjeta = null
+                        },
+                        onTitularChange = { value ->
+                            titularTarjeta = value
+                            mensajeTarjeta = null
+                        },
+                        onMesChange = { value ->
+                            mesTarjeta = value
+                                .filter { it.isDigit() }
+                                .take(2)
+
+                            mensajeTarjeta = null
+                        },
+                        onAnioChange = { value ->
+                            anioTarjeta = value
                                 .filter { it.isDigit() }
                                 .take(4)
 
-                            mensaje = null
+                            mensajeTarjeta = null
+                        },
+                        onCvvChange = { value ->
+                            cvvTarjeta = value
+                                .filter { it.isDigit() }
+                                .take(4)
+
+                            mensajeTarjeta = null
+                        },
+                        onToggleCvv = {
+                            cvvVisible = !cvvVisible
                         },
                         onSave = {
-                            if (tarjetaInput.length != 4) {
-                                mensaje = "Ingresá los últimos 4 dígitos."
-                                return@PaymentCard
+                            if (cvvTarjeta.length < 3) {
+                                mensajeTarjeta = "CVV inválido."
+                            } else {
+                                try {
+                                    PaymentCardsManager.addCard(
+                                        context = context,
+                                        numero = numeroTarjeta,
+                                        titular = titularTarjeta,
+                                        mes = mesTarjeta,
+                                        anio = anioTarjeta
+                                    )
+
+                                    tarjetas = PaymentCardsManager.getCards(context)
+
+                                    numeroTarjeta = ""
+                                    titularTarjeta = ""
+                                    mesTarjeta = ""
+                                    anioTarjeta = ""
+                                    cvvTarjeta = ""
+                                    showCardForm = false
+
+                                    mensajeTarjeta = "Tarjeta agregada correctamente."
+                                } catch (e: Exception) {
+                                    mensajeTarjeta = e.message ?: "No se pudo agregar la tarjeta."
+                                }
                             }
-
-                            prefs.edit()
-                                .putString("tarjetaUltimos4", tarjetaInput)
-                                .apply()
-
-                            tarjetaUltimos4 = tarjetaInput
-                            mensaje = "Método de pago guardado."
                         },
-                        onDelete = {
-                            prefs.edit()
-                                .remove("tarjetaUltimos4")
-                                .apply()
-
-                            tarjetaUltimos4 = ""
-                            tarjetaInput = ""
-                            mensaje = "Método de pago eliminado."
+                        onDefault = { cardId ->
+                            PaymentCardsManager.setDefault(context, cardId)
+                            tarjetas = PaymentCardsManager.getCards(context)
+                        },
+                        onDelete = { cardId ->
+                            PaymentCardsManager.deleteCard(context, cardId)
+                            tarjetas = PaymentCardsManager.getCards(context)
                         }
                     )
                 }
@@ -361,13 +474,26 @@ private fun AddressAccessCard(
 }
 
 @Composable
-private fun PaymentCard(
-    tarjetaUltimos4: String,
-    tarjetaInput: String,
+private fun PaymentCardsSection(
+    tarjetas: List<PaymentCard>,
+    showForm: Boolean,
+    numeroTarjeta: String,
+    titularTarjeta: String,
+    mesTarjeta: String,
+    anioTarjeta: String,
+    cvvTarjeta: String,
+    cvvVisible: Boolean,
     mensaje: String?,
-    onInputChange: (String) -> Unit,
+    onToggleForm: () -> Unit,
+    onNumeroChange: (String) -> Unit,
+    onTitularChange: (String) -> Unit,
+    onMesChange: (String) -> Unit,
+    onAnioChange: (String) -> Unit,
+    onCvvChange: (String) -> Unit,
+    onToggleCvv: () -> Unit,
     onSave: () -> Unit,
-    onDelete: () -> Unit
+    onDefault: (String) -> Unit,
+    onDelete: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -378,9 +504,10 @@ private fun PaymentCard(
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -390,60 +517,146 @@ private fun PaymentCard(
                     tint = PrimaryGreen
                 )
 
-                Text(
-                    text = "Método de pago",
-                    color = PrimaryDeep,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            if (tarjetaUltimos4.isNotBlank()) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = PrimaryGreen
+                    Text(
+                        text = "Métodos de pago",
+                        color = PrimaryDeep,
+                        fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Tarjeta terminada en $tarjetaUltimos4",
-                        color = PrimaryDeep,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Tarjetas guardadas y opción predeterminada.",
+                        color = TextSoft,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
-            } else {
+
+                IconButton(onClick = onToggleForm) {
+                    Icon(
+                        imageVector = if (showForm) {
+                            Icons.Rounded.Close
+                        } else {
+                            Icons.Rounded.Add
+                        },
+                        contentDescription = null,
+                        tint = PrimaryGreen
+                    )
+                }
+            }
+
+            if (tarjetas.isEmpty()) {
                 Text(
-                    text = "Agregá los últimos 4 dígitos de tu tarjeta.",
+                    text = "No hay tarjetas registradas.",
                     color = TextSoft,
                     style = MaterialTheme.typography.bodySmall
                 )
+            } else {
+                tarjetas.forEach { card ->
+                    SavedCardRow(
+                        card = card,
+                        onDefault = {
+                            onDefault(card.id)
+                        },
+                        onDelete = {
+                            onDelete(card.id)
+                        }
+                    )
+                }
             }
 
-            OutlinedTextField(
-                value = tarjetaInput,
-                onValueChange = onInputChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Últimos 4 dígitos") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.CreditCard,
-                        contentDescription = null
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(18.dp)
-            )
+            if (showForm) {
+                Divider()
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+                Text(
+                    text = "Agregar tarjeta",
+                    color = PrimaryDeep,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedTextField(
+                    value = numeroTarjeta,
+                    onValueChange = onNumeroChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Número de tarjeta") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.CreditCard,
+                            contentDescription = null
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp)
+                )
+
+                OutlinedTextField(
+                    value = titularTarjeta,
+                    onValueChange = onTitularChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nombre del titular") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Person,
+                            contentDescription = null
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = mesTarjeta,
+                        onValueChange = onMesChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text("MM") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = anioTarjeta,
+                        onValueChange = onAnioChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text("AA") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = cvvTarjeta,
+                        onValueChange = onCvvChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text("CVV") },
+                        singleLine = true,
+                        visualTransformation = if (cvvVisible) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = onToggleCvv) {
+                                Icon(
+                                    imageVector = if (cvvVisible) {
+                                        Icons.Rounded.VisibilityOff
+                                    } else {
+                                        Icons.Rounded.Visibility
+                                    },
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(18.dp)
+                    )
+                }
+
                 Button(
                     onClick = onSave,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryGreen,
@@ -455,29 +668,80 @@ private fun PaymentCard(
                         contentDescription = "Guardar"
                     )
                 }
-
-                OutlinedButton(
-                    onClick = onDelete,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = "Eliminar",
-                        tint = DangerRed
-                    )
-                }
             }
 
             if (mensaje != null) {
                 Text(
                     text = mensaje,
-                    color = if (mensaje.contains("guardado", ignoreCase = true)) {
+                    color = if (mensaje.contains("correctamente", ignoreCase = true)) {
                         PrimaryGreen
                     } else {
                         DangerRed
                     },
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedCardRow(
+    card: PaymentCard,
+    onDefault: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = PrimaryGreen.copy(alpha = 0.06f)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CreditCard,
+                contentDescription = null,
+                tint = PrimaryGreen
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = card.displayName,
+                    color = PrimaryDeep,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "${card.titular} · vence ${card.vencimiento}",
+                    color = TextSoft,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            IconButton(onClick = onDefault) {
+                Icon(
+                    imageVector = if (card.predeterminada) {
+                        Icons.Rounded.Star
+                    } else {
+                        Icons.Rounded.StarBorder
+                    },
+                    contentDescription = "Predeterminada",
+                    tint = PrimaryGreen
+                )
+            }
+
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = "Eliminar",
+                    tint = DangerRed
                 )
             }
         }

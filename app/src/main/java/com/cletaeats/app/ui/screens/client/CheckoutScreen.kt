@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AddLocationAlt
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AddLocationAlt
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RemoveShoppingCart
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,12 +60,15 @@ import com.cletaeats.app.data.remote.toPedidoMessage
 import com.cletaeats.app.data.remote.toUserMessage
 import com.cletaeats.app.domain.cart.CartRestaurantGroup
 import com.cletaeats.app.domain.cart.CartState
+import com.cletaeats.app.domain.payment.PaymentCard
+import com.cletaeats.app.domain.payment.PaymentCardsManager
 import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.components.CletaScaffold
 import com.cletaeats.app.ui.components.EmptyState
 import com.cletaeats.app.ui.components.ErrorState
 import com.cletaeats.app.ui.components.LoadingBox
 import com.cletaeats.app.ui.components.money
+import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.DangerRed
 import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
@@ -91,6 +97,24 @@ fun CheckoutScreen(
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val tarjetas by remember {
+        mutableStateOf(PaymentCardsManager.getCards(context))
+    }
+
+    var medioPago by remember {
+        mutableStateOf(
+            if (PaymentCardsManager.getDefaultCard(context) != null) {
+                "TARJETA"
+            } else {
+                "EFECTIVO"
+            }
+        )
+    }
+
+    var selectedCardId by remember {
+        mutableStateOf(PaymentCardsManager.getDefaultCard(context)?.id)
+    }
 
     fun cargarDirecciones() {
         scope.launch {
@@ -181,6 +205,22 @@ fun CheckoutScreen(
                 }
 
                 item {
+                    PaymentMethodSelector(
+                        tarjetas = tarjetas,
+                        medioPago = medioPago,
+                        selectedCardId = selectedCardId,
+                        onCash = {
+                            medioPago = "EFECTIVO"
+                            selectedCardId = null
+                        },
+                        onCard = { cardId ->
+                            medioPago = "TARJETA"
+                            selectedCardId = cardId
+                        }
+                    )
+                }
+
+                item {
                     val direccion = selectedDireccion
                     val groups = CartState.groups()
 
@@ -207,6 +247,13 @@ fun CheckoutScreen(
                                 return@Button
                             }
 
+                            val selectedCard = tarjetas.firstOrNull { it.id == selectedCardId }
+
+                            if (medioPago == "TARJETA" && selectedCard == null) {
+                                error = "Seleccioná una tarjeta o pagá en efectivo."
+                                return@Button
+                            }
+
                             scope.launch {
                                 saving = true
                                 error = null
@@ -223,6 +270,12 @@ fun CheckoutScreen(
                                                 direccionEntrega = selected.direccionTexto,
                                                 distanciaKm = distancia,
                                                 observaciones = observaciones.ifBlank { null },
+                                                medioPago = medioPago,
+                                                tarjetaResumen = if (medioPago == "TARJETA") {
+                                                    selectedCard?.displayName
+                                                } else {
+                                                    null
+                                                },
                                                 items = group.toPedidoItems()
                                             )
                                         )
@@ -668,6 +721,133 @@ private fun TotalRow(
             color = PrimaryDeep,
             fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+private fun PaymentMethodSelector(
+    tarjetas: List<PaymentCard>,
+    medioPago: String,
+    selectedCardId: String?,
+    onCash: () -> Unit,
+    onCard: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Payments,
+                    contentDescription = null,
+                    tint = PrimaryGreen
+                )
+
+                Text(
+                    text = "Método de pago",
+                    color = PrimaryDeep,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            PaymentOptionRow(
+                selected = medioPago == "EFECTIVO",
+                icon = Icons.Rounded.Payments,
+                title = "Efectivo",
+                subtitle = "Pagar al recibir el pedido",
+                onClick = onCash
+            )
+
+            tarjetas.forEach { card ->
+                PaymentOptionRow(
+                    selected = medioPago == "TARJETA" && selectedCardId == card.id,
+                    icon = Icons.Rounded.CreditCard,
+                    title = card.displayName,
+                    subtitle = "${card.titular} · vence ${card.vencimiento}",
+                    onClick = {
+                        onCard(card.id)
+                    }
+                )
+            }
+
+            if (tarjetas.isEmpty()) {
+                Text(
+                    text = "No tenés tarjetas registradas. Podés pagar en efectivo o agregar una tarjeta desde Perfil.",
+                    color = TextSoft,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaymentOptionRow(
+    selected: Boolean,
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                PrimaryGreen.copy(alpha = 0.10f)
+            } else {
+                BackgroundSoft
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            RadioButton(
+                selected = selected,
+                onClick = onClick
+            )
+
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = PrimaryGreen
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    color = PrimaryDeep,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = subtitle,
+                    color = TextSoft,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 

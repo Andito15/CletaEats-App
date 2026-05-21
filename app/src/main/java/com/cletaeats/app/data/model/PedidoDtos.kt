@@ -4,6 +4,8 @@ data class PedidoCreateRequest(
     val direccionEntrega: String,
     val distanciaKm: Double,
     val observaciones: String?,
+    val medioPago: String,
+    val tarjetaResumen: String?,
     val items: List<PedidoCreateItemRequest>
 )
 
