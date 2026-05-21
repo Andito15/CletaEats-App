@@ -1,14 +1,11 @@
 package com.cletaeats.app.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.screens.auth.LoginScreen
 import com.cletaeats.app.ui.screens.auth.RegisterScreen
 import com.cletaeats.app.ui.screens.client.CheckoutScreen
@@ -17,7 +14,6 @@ import com.cletaeats.app.ui.screens.client.CombosScreen
 import com.cletaeats.app.ui.screens.client.FeedbackScreen
 import com.cletaeats.app.ui.screens.client.PedidoDetalleScreen
 import com.cletaeats.app.ui.screens.client.PedidoTrackingScreen
-import com.cletaeats.app.ui.screens.client.RestaurantesScreen
 import com.cletaeats.app.ui.screens.delivery.RepartidorPedidosScreen
 import com.cletaeats.app.ui.screens.home.DireccionFormScreen
 import com.cletaeats.app.ui.screens.home.DireccionesScreen
@@ -29,8 +25,6 @@ import com.cletaeats.app.ui.screens.splash.SplashScreen
 fun AppNavGraph(
     navController: NavHostController
 ) {
-    val context = LocalContext.current
-    val sessionManager = remember { SessionManager(context) }
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH
@@ -38,8 +32,12 @@ fun AppNavGraph(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinish = { hasSession ->
-                    navController.navigate(if (hasSession) Routes.HOME else Routes.LOGIN) {
-                        popUpTo(Routes.SPLASH) { inclusive = true }
+                    navController.navigate(
+                        if (hasSession) Routes.HOME else Routes.LOGIN
+                    ) {
+                        popUpTo(Routes.SPLASH) {
+                            inclusive = true
+                        }
                     }
                 }
             )
@@ -47,7 +45,7 @@ fun AppNavGraph(
 
         composable(Routes.LOGIN) {
             LoginScreen(
-                onLoginSuccess = { rol ->
+                onLoginSuccess = {
                     navController.navigate(Routes.HOME) {
                         popUpTo(Routes.LOGIN) {
                             inclusive = true
@@ -87,7 +85,9 @@ fun AppNavGraph(
                 },
                 onLogout = {
                     navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(0) {
+                            inclusive = true
+                        }
                     }
                 }
             )
@@ -106,18 +106,25 @@ fun AppNavGraph(
 
         composable(Routes.DIRECCIONES) {
             DireccionesScreen(
-                onBack = { navController.popBackStack() },
-                onAdd = { navController.navigate(Routes.DIRECCION_FORM) }
+                onBack = {
+                    navController.popBackStack()
+                },
+                onAdd = {
+                    navController.navigate(Routes.DIRECCION_FORM)
+                }
             )
         }
 
         composable(Routes.DIRECCION_FORM) {
             DireccionFormScreen(
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() }
+                onBack = {
+                    navController.popBackStack()
+                },
+                onSaved = {
+                    navController.popBackStack()
+                }
             )
         }
-
 
         composable(
             route = Routes.COMBOS,
@@ -133,7 +140,9 @@ fun AppNavGraph(
 
             CombosScreen(
                 restauranteId = restauranteId,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack()
+                },
                 onCheckout = {
                     navController.navigate(Routes.CHECKOUT)
                 }
@@ -142,13 +151,17 @@ fun AppNavGraph(
 
         composable(Routes.CHECKOUT) {
             CheckoutScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack()
+                },
                 onAddAddress = {
                     navController.navigate(Routes.DIRECCION_FORM)
                 },
                 onPedidoCreado = { pedidoId ->
                     navController.navigate(Routes.pedidoDetalle(pedidoId)) {
-                        popUpTo(Routes.RESTAURANTES)
+                        popUpTo(Routes.HOME) {
+                            inclusive = false
+                        }
                     }
                 }
             )
@@ -156,12 +169,19 @@ fun AppNavGraph(
 
         composable(Routes.CLIENTE_PEDIDOS) {
             ClientePedidosScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack()
+                },
                 onDetail = { pedidoId ->
                     navController.navigate(Routes.pedidoDetalle(pedidoId))
                 },
                 onRestaurants = {
-                    navController.navigate(Routes.RESTAURANTES)
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.HOME) {
+                            inclusive = false
+                        }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
