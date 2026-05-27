@@ -1,11 +1,13 @@
 package com.cletaeats.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.cletaeats.app.domain.session.SessionManager
 import com.cletaeats.app.ui.screens.auth.LoginScreen
 import com.cletaeats.app.ui.screens.auth.RegisterScreen
 import com.cletaeats.app.ui.screens.client.CheckoutScreen
@@ -68,9 +70,18 @@ fun AppNavGraph(
         }
 
         composable(Routes.DATA_MODE) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val sessionManager = remember { SessionManager(context) }
+
             DataModeSelectionScreen(
                 onContinue = {
-                    navController.navigate(Routes.HOME) {
+                    val destino = if (sessionManager.getRol() == "REPARTIDOR") {
+                        Routes.REPARTIDOR_PEDIDOS
+                    } else {
+                        Routes.HOME
+                    }
+
+                    navController.navigate(destino) {
                         popUpTo(Routes.DATA_MODE) {
                             inclusive = true
                         }
@@ -80,32 +91,45 @@ fun AppNavGraph(
         }
 
         composable(Routes.HOME) {
-            HomeScreen(
-                onOpenRestaurant = { restauranteId ->
-                    navController.navigate(Routes.combos(restauranteId))
-                },
-                onCart = {
-                    navController.navigate(Routes.CHECKOUT)
-                },
-                onPerfil = {
-                    navController.navigate(Routes.PERFIL)
-                },
-                onMisPedidos = {
-                    navController.navigate(Routes.CLIENTE_PEDIDOS)
-                },
-                onPedidosRepartidor = {
-                    navController.navigate(Routes.REPARTIDOR_PEDIDOS)
-                },
-                onLogout = {
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val sessionManager = remember { SessionManager(context) }
+
+            if (sessionManager.getRol() == "REPARTIDOR") {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.navigate(Routes.REPARTIDOR_PEDIDOS) {
+                        popUpTo(Routes.HOME) {
                             inclusive = true
                         }
+                        launchSingleTop = true
                     }
                 }
-            )
+            } else {
+                HomeScreen(
+                    onOpenRestaurant = { restauranteId ->
+                        navController.navigate(Routes.combos(restauranteId))
+                    },
+                    onCart = {
+                        navController.navigate(Routes.CHECKOUT)
+                    },
+                    onPerfil = {
+                        navController.navigate(Routes.PERFIL)
+                    },
+                    onMisPedidos = {
+                        navController.navigate(Routes.CLIENTE_PEDIDOS)
+                    },
+                    onPedidosRepartidor = {
+                        navController.navigate(Routes.REPARTIDOR_PEDIDOS)
+                    },
+                    onLogout = {
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                )
+            }
         }
-
         composable(Routes.PERFIL) {
             PerfilScreen(
                 onBack = {
@@ -296,9 +320,27 @@ fun AppNavGraph(
         }
 
         composable(Routes.REPARTIDOR_PEDIDOS) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val sessionManager = remember { SessionManager(context) }
+
             RepartidorPedidosScreen(
-                onBack = {
-                    navController.popBackStack()
+                onInicio = {
+                    navController.navigate(Routes.REPARTIDOR_PEDIDOS) {
+                        launchSingleTop = true
+                    }
+                },
+                onPerfil = {
+                    navController.navigate(Routes.PERFIL)
+                },
+                onLogout = {
+                    sessionManager.clearSession()
+
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
                 },
                 onDetail = { pedidoId ->
                     navController.navigate(Routes.pedidoDetalle(pedidoId))

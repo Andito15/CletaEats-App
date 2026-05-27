@@ -15,10 +15,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeliveryDining
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
@@ -27,13 +31,24 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,28 +69,47 @@ import com.cletaeats.app.data.model.PedidoResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
 import com.cletaeats.app.data.remote.toDeliveryMessage
 import com.cletaeats.app.data.remote.toUserMessage
-import com.cletaeats.app.ui.components.CletaScaffold
+import com.cletaeats.app.domain.datamode.DataModeManager
+import com.cletaeats.app.ui.components.DataModePickerDialog
 import com.cletaeats.app.ui.components.EmptyState
 import com.cletaeats.app.ui.components.ErrorState
 import com.cletaeats.app.ui.components.IconBubble
 import com.cletaeats.app.ui.components.LoadingBox
 import com.cletaeats.app.ui.components.StatusChip
 import com.cletaeats.app.ui.components.money
+import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.DangerRed
 import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
 import com.cletaeats.app.ui.theme.TextSoft
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.util.Locale
 
 @Composable
 fun RepartidorPedidosScreen(
-    onBack: () -> Unit,
+    onInicio: () -> Unit,
+    onPerfil: () -> Unit,
+    onLogout: () -> Unit,
     onDetail: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val api = remember { RetrofitProvider.createApiService(context) }
     val scope = rememberCoroutineScope()
+
+    val dataModeManager = remember { DataModeManager(context) }
+
+    var dataMode by remember {
+        mutableStateOf(dataModeManager.getMode())
+    }
+
+    var tempMode by remember {
+        mutableStateOf(dataMode)
+    }
+
+    var showModeDialog by remember {
+        mutableStateOf(false)
+    }
 
     var pedidosDisponibles by remember { mutableStateOf<List<PedidoResponse>>(emptyList()) }
     var misPedidos by remember { mutableStateOf<List<PedidoResponse>>(emptyList()) }
@@ -93,15 +127,22 @@ fun RepartidorPedidosScreen(
             error = null
 
             try {
-                misPedidos = api.listarMisPedidosRepartidor()
+                val mios = api.listarMisPedidosRepartidor()
+                misPedidos = mios
 
                 pedidosDisponibles = try {
                     api.listarPedidosDisponiblesRepartidor()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    // Si el backend devuelve 409 porque el repartidor está ocupado,
+                    // no es un error de pantalla: simplemente no hay disponibles.
                     emptyList()
                 }
+
+                if (misPedidos.isNotEmpty()) {
+                    tab = "MIOS"
+                }
             } catch (e: Exception) {
-                error = e.toUserMessage()
+                error = e.toDeliveryMessage()
             } finally {
                 loading = false
             }
@@ -152,8 +193,19 @@ fun RepartidorPedidosScreen(
                 misPedidos = misPedidos.map { pedido ->
                     if (pedido.pedidoId == pedidoId) actualizado else pedido
                 }
+
+                pedidosDisponibles = pedidosDisponibles.filterNot {
+                    it.pedidoId == pedidoId
+                }
+
+                tab = "MIOS"
             } catch (e: Exception) {
-                error = e.toDeliveryMessage()
+                error = if (e is HttpException) {
+                    val body = e.response()?.errorBody()?.string()
+                    "HTTP ${e.code()}: ${body ?: e.message()}"
+                } else {
+                    e.message ?: e.toDeliveryMessage()
+                }
             } finally {
                 updatingPedidoId = null
             }
@@ -186,6 +238,7 @@ fun RepartidorPedidosScreen(
                 TextButton(
                     onClick = {
                         pedidoParaEntregar = null
+
                         pedido.pedidoId?.let { id ->
                             actualizarEstado(
                                 pedidoId = id,
@@ -211,18 +264,15 @@ fun RepartidorPedidosScreen(
         )
     }
 
-    CletaScaffold(
-        title = "Repartidor",
-        onBack = onBack,
-        actions = {
-            IconButton(onClick = { cargarPedidos() }) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = "Actualizar",
-                    tint = PrimaryGreen
-                )
-            }
-        }
+    RepartidorDrawerScaffold(
+        title = "Pedidos",
+        onInicio = onInicio,
+        onPerfil = onPerfil,
+        onCambiarModo = {
+            tempMode = dataMode
+            showModeDialog = true
+        },
+        onLogout = onLogout
     ) { modifier ->
         when {
             loading -> LoadingBox(modifier = modifier)
@@ -336,7 +386,210 @@ fun RepartidorPedidosScreen(
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
                 }
+
             }
+        }
+    }
+    if (showModeDialog) {
+        DataModePickerDialog(
+            selectedMode = tempMode,
+            onModeSelected = { mode ->
+                tempMode = mode
+            },
+            onDismiss = {
+                showModeDialog = false
+            },
+            onConfirm = {
+                dataModeManager.saveMode(tempMode)
+                dataMode = tempMode
+                showModeDialog = false
+            }
+        )
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RepartidorDrawerScaffold(
+    title: String,
+    onInicio: () -> Unit,
+    onPerfil: () -> Unit,
+    onCambiarModo: () -> Unit,
+    onLogout: () -> Unit,
+    content: @Composable (Modifier) -> Unit
+) {
+    val drawerState = rememberDrawerState(
+        initialValue = DrawerValue.Closed
+    )
+
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "CletaEats",
+                    color = PrimaryGreen,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Text(
+                    text = "Repartidor",
+                    color = TextSoft,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                NavigationDrawerItem(
+                    label = {
+                        Text("Inicio")
+                    },
+                    selected = true,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Home,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                        }
+
+                        onInicio()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = {
+                        Text("Perfil")
+                    },
+                    selected = false,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Person,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                        }
+
+                        onPerfil()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = {
+                        Text("Modo de datos")
+                    },
+                    selected = false,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                        }
+
+                        onCambiarModo()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    color = TextSoft.copy(alpha = 0.18f)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                NavigationDrawerItem(
+                    label = {
+                        Text(
+                            text = "Cerrar sesión",
+                            color = DangerRed,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    selected = false,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Logout,
+                            contentDescription = null,
+                            tint = DangerRed
+                        )
+                    },
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                        }
+
+                        onLogout()
+                    },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = DangerRed,
+                        unselectedTextColor = DangerRed
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = title,
+                            color = PrimaryDeep,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    drawerState.open()
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Menu,
+                                contentDescription = "Menú",
+                                tint = PrimaryGreen
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = BackgroundSoft
+                    )
+                )
+            },
+            containerColor = BackgroundSoft
+        ) { paddingValues ->
+            content(
+                Modifier.padding(paddingValues)
+            )
         }
     }
 }
@@ -425,7 +678,9 @@ private fun PedidoDisponibleCard(
 
             InfoRow(
                 icon = Icons.Rounded.Route,
-                text = "${String.format(Locale.getDefault(), "%.2f", pedido.distanciaKm)} km"
+                text = "${String.format(Locale.US, "%.2f", pedido.distanciaKm)} km · ${
+                    money(pedido.costoKmAplicado)
+                }/km"
             )
 
             Row(
@@ -514,7 +769,7 @@ private fun MiPedidoCard(
 
             InfoRow(
                 icon = Icons.Rounded.Route,
-                text = "${String.format(Locale.getDefault(), "%.2f", pedido.distanciaKm)} km · ${
+                text = "${String.format(Locale.US, "%.2f", pedido.distanciaKm)} km · ${
                     money(pedido.costoKmAplicado)
                 }/km"
             )
