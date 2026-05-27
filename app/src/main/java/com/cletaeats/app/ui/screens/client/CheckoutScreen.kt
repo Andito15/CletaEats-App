@@ -58,6 +58,7 @@ import com.cletaeats.app.data.model.RestauranteResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
 import com.cletaeats.app.data.remote.toPedidoMessage
 import com.cletaeats.app.data.remote.toUserMessage
+import com.cletaeats.app.data.repository.ClienteDireccionRepository
 import com.cletaeats.app.domain.cart.CartRestaurantGroup
 import com.cletaeats.app.domain.cart.CartState
 import com.cletaeats.app.domain.payment.PaymentCard
@@ -90,6 +91,13 @@ fun CheckoutScreen(
     val api = remember { RetrofitProvider.createApiService(context) }
     val sessionManager = remember { SessionManager(context) }
     val scope = rememberCoroutineScope()
+
+    val direccionRepository = remember {
+        ClienteDireccionRepository(
+            context = context,
+            api = api
+        )
+    }
 
     var direcciones by remember { mutableStateOf<List<ClienteDireccionResponse>>(emptyList()) }
     var selectedDireccion by remember { mutableStateOf<ClienteDireccionResponse?>(null) }
@@ -125,10 +133,10 @@ fun CheckoutScreen(
                 val clienteId = sessionManager.getClienteId()
                     ?: throw IllegalStateException("No se encontró el cliente en sesión.")
 
-                val response = api.listarDirecciones(clienteId)
+                val response = direccionRepository.listar(clienteId)
 
                 direcciones = response
-                selectedDireccion = response.firstOrNull { it.esPredeterminada }
+                selectedDireccion = response.firstOrNull { it.esPredeterminada == true }
                     ?: response.firstOrNull()
             } catch (e: Exception) {
                 error = e.toUserMessage()

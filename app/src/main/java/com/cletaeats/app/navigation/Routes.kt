@@ -4,6 +4,7 @@ object Routes {
     const val SPLASH = "splash"
     const val LOGIN = "login"
     const val REGISTER = "register"
+    const val DATA_MODE = "data_mode"
     const val HOME = "home"
     const val PERFIL = "perfil"
     const val DIRECCIONES = "direcciones"
@@ -16,6 +17,9 @@ object Routes {
     const val PEDIDO_TRACKING = "pedido_tracking/{pedidoId}"
     const val FEEDBACK = "feedback/{pedidoId}"
     const val REPARTIDOR_PEDIDOS = "repartidor_pedidos"
+    const val DIRECCION_EDIT = "direccion_form/{direccionId}"
+
+    fun direccionEdit(direccionId: Long) = "direccion_form/$direccionId"
 
     fun combos(restauranteId: Long) = "combos/$restauranteId"
     fun pedidoDetalle(pedidoId: Long) = "pedido_detalle/$pedidoId"

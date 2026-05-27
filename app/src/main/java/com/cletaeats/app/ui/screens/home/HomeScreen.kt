@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.DinnerDining
 import androidx.compose.material.icons.rounded.Fastfood
@@ -32,9 +33,12 @@ import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingCart
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -77,7 +81,10 @@ import com.cletaeats.app.R
 import com.cletaeats.app.data.model.RestauranteResponse
 import com.cletaeats.app.data.remote.RetrofitProvider
 import com.cletaeats.app.domain.cart.CartState
+import com.cletaeats.app.domain.datamode.DataMode
+import com.cletaeats.app.domain.datamode.DataModeManager
 import com.cletaeats.app.domain.session.SessionManager
+import com.cletaeats.app.ui.components.DataModePickerDialog
 import com.cletaeats.app.ui.components.EmptyState
 import com.cletaeats.app.ui.components.ErrorState
 import com.cletaeats.app.ui.components.IconBubble
@@ -104,6 +111,19 @@ fun HomeScreen(
     val nombre = sessionManager.getNombre().orEmpty()
     val correo = sessionManager.getCorreo().orEmpty()
     val rol = sessionManager.getRol().orEmpty()
+    val dataModeManager = remember { DataModeManager(context) }
+
+    var dataMode by remember {
+        mutableStateOf(dataModeManager.getMode())
+    }
+
+    var showModeDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var tempMode by remember {
+        mutableStateOf(dataMode)
+    }
 
     val logoutAction = {
         sessionManager.clearSession()
@@ -114,6 +134,11 @@ fun HomeScreen(
         nombre = nombre,
         correo = correo,
         rol = rol,
+        dataMode = dataMode,
+        onChangeDataMode = {
+            tempMode = dataMode
+            showModeDialog = true
+        },
         onOpenRestaurant = onOpenRestaurant,
         onCart = onCart,
         onPerfil = onPerfil,
@@ -121,6 +146,23 @@ fun HomeScreen(
         onPedidosRepartidor = onPedidosRepartidor,
         onLogout = logoutAction
     )
+
+    if (showModeDialog) {
+        DataModePickerDialog(
+            selectedMode = tempMode,
+            onModeSelected = { mode ->
+                tempMode = mode
+            },
+            onDismiss = {
+                showModeDialog = false
+            },
+            onConfirm = {
+                dataModeManager.saveMode(tempMode)
+                dataMode = tempMode
+                showModeDialog = false
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,6 +171,8 @@ private fun HomeDrawerScaffold(
     nombre: String,
     correo: String,
     rol: String,
+    dataMode: DataMode,
+    onChangeDataMode: () -> Unit,
     onOpenRestaurant: (Long) -> Unit,
     onCart: () -> Unit,
     onPerfil: () -> Unit,
@@ -239,6 +283,24 @@ private fun HomeDrawerScaffold(
                 Spacer(modifier = Modifier.weight(1f))
 
                 NavigationDrawerItem(
+                    label = { Text("Modo de datos") },
+                    selected = false,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        scope.launch {
+                            drawerState.close()
+                        }
+                        onChangeDataMode()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
                     label = {
                         Text(
                             text = "Salir",
@@ -286,6 +348,9 @@ private fun HomeDrawerScaffold(
                         }
                     },
                     actions = {
+                        DataModeBadge(
+                            mode = dataMode
+                        )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -759,6 +824,52 @@ fun DeliveryHomeScreen(
     }
 }
 
+@Composable
+private fun DataModeBadge(
+    mode: DataMode
+) {
+    val icon = when (mode) {
+        DataMode.API -> Icons.Rounded.Storage
+        DataMode.LOCAL -> Icons.Rounded.PhoneAndroid
+        DataMode.CLOUD -> Icons.Rounded.Cloud
+    }
+
+    val label = when (mode) {
+        DataMode.API -> "API"
+        DataMode.LOCAL -> "SQLite"
+        DataMode.CLOUD -> "Cloud"
+    }
+
+    Surface(
+        color = PrimaryGreen.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.padding(end = 6.dp)
+    ) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.padding(
+                horizontal = 8.dp,
+                vertical = 5.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = PrimaryGreen,
+                modifier = Modifier.height(15.dp)
+            )
+
+            Text(
+                text = label,
+                color = PrimaryGreen,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1
+            )
+        }
+    }
+}
 @Composable
 private fun WelcomeCard(
     nombre: String,

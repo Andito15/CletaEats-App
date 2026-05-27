@@ -14,6 +14,7 @@ import com.cletaeats.app.ui.screens.client.CombosScreen
 import com.cletaeats.app.ui.screens.client.FeedbackScreen
 import com.cletaeats.app.ui.screens.client.PedidoDetalleScreen
 import com.cletaeats.app.ui.screens.client.PedidoTrackingScreen
+import com.cletaeats.app.ui.screens.datamode.DataModeSelectionScreen
 import com.cletaeats.app.ui.screens.delivery.RepartidorPedidosScreen
 import com.cletaeats.app.ui.screens.home.DireccionFormScreen
 import com.cletaeats.app.ui.screens.home.DireccionesScreen
@@ -46,7 +47,7 @@ fun AppNavGraph(
         composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Routes.HOME) {
+                    navController.navigate(Routes.DATA_MODE) {
                         popUpTo(Routes.LOGIN) {
                             inclusive = true
                         }
@@ -62,6 +63,18 @@ fun AppNavGraph(
             RegisterScreen(
                 onBackToLogin = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Routes.DATA_MODE) {
+            DataModeSelectionScreen(
+                onContinue = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.DATA_MODE) {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }
@@ -111,12 +124,39 @@ fun AppNavGraph(
                 },
                 onAdd = {
                     navController.navigate(Routes.DIRECCION_FORM)
+                },
+                onEdit = { direccionId ->
+                    navController.navigate(Routes.direccionEdit(direccionId))
                 }
             )
         }
 
         composable(Routes.DIRECCION_FORM) {
             DireccionFormScreen(
+                direccionId = null,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onSaved = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = Routes.DIRECCION_EDIT,
+            arguments = listOf(
+                navArgument("direccionId") {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val direccionId = backStackEntry.arguments
+                ?.getLong("direccionId")
+                ?: return@composable
+
+            DireccionFormScreen(
+                direccionId = direccionId,
                 onBack = {
                     navController.popBackStack()
                 },

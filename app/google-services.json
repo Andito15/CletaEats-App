@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "729249958375",
+    "project_id": "cletaeats-moviles",
+    "storage_bucket": "cletaeats-moviles.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:729249958375:android:127f863674e8e153d9d542",
+        "android_client_info": {
+          "package_name": "com.cletaeats.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1tAbT4BjFp4SwEAx5MdpHhOYSF-JQi9A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
