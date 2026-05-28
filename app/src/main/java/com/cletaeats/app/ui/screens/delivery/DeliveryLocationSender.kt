@@ -51,6 +51,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @Composable
 fun DeliveryLocationSender(
@@ -260,6 +261,14 @@ private fun TrackingActiveCard(
     }
 }
 
+private fun trackingErrorMessage(error: Throwable): String {
+    return if (error is HttpException) {
+        val body = error.response()?.errorBody()?.string()
+        "HTTP ${error.code()}: ${body ?: error.message()}"
+    } else {
+        error.message ?: "No se pudo actualizar la ubicación."
+    }
+}
 @SuppressLint("MissingPermission")
 @Composable
 private fun DeliveryLocationUpdates(
@@ -305,7 +314,7 @@ private fun DeliveryLocationUpdates(
             }.onSuccess {
                 status = "Ubicación enviada al cliente."
             }.onFailure {
-                status = it.toDeliveryMessage()
+                status = trackingErrorMessage(it)
             }
         }
     }

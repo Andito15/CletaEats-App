@@ -403,10 +403,8 @@ private fun PedidoDetailContent(
                                 } else {
                                     Icon(
                                         imageVector = Icons.Rounded.DeliveryDining,
-                                        contentDescription = null
+                                        contentDescription = "Iniciar viaje"
                                     )
-
-                                    Text("  Iniciar viaje")
                                 }
                             }
                         }
@@ -432,10 +430,8 @@ private fun PedidoDetailContent(
                                 } else {
                                     Icon(
                                         imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = null
+                                        contentDescription = "Terminar pedido"
                                     )
-
-                                    Text("  Terminar pedido")
                                 }
                             }
                         }

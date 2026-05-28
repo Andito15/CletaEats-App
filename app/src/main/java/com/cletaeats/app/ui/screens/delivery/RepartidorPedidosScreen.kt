@@ -842,7 +842,10 @@ private fun MiPedidoCard(
                                 color = Color.White
                             )
                         } else {
-                            Text("Iniciar")
+                            Icon(
+                                imageVector = Icons.Rounded.DeliveryDining,
+                                contentDescription = "Iniciar viaje"
+                            )
                         }
                     }
                 }
@@ -864,7 +867,10 @@ private fun MiPedidoCard(
                                 color = Color.White
                             )
                         } else {
-                            Text("Terminar")
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = "Terminar pedido"
+                            )
                         }
                     }
                 }
