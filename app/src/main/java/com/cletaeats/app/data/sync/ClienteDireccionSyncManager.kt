@@ -1,6 +1,7 @@
 package com.cletaeats.app.data.sync
 
 import android.content.Context
+import com.cletaeats.app.data.cloud.ClienteDireccionCloudDataSource
 import com.cletaeats.app.data.local.ClienteDireccionLocalDataSource
 import com.cletaeats.app.data.local.ClienteDireccionLocalModel
 import com.cletaeats.app.data.local.toLocalModel
@@ -15,16 +16,18 @@ data class SyncResult(
     val message: String
         get() = when {
             totalPendientes == 0 -> "No hay cambios pendientes por sincronizar."
-            fallidas == 0 -> "Sincronización completa: $sincronizadas cambio(s) enviados."
-            else -> "Sincronización parcial: $sincronizadas enviados, $fallidas fallidos."
+            fallidas == 0 -> "Sincronización con Cloud completa: $sincronizadas cambio(s) enviados."
+            else -> "Sincronización parcial con Cloud: $sincronizadas enviados, $fallidas fallidos."
         }
 }
 
 class ClienteDireccionSyncManager(
     context: Context,
+    @Suppress("unused")
     private val api: ApiService
 ) {
     private val localDataSource = ClienteDireccionLocalDataSource(context.applicationContext)
+    private val cloudDataSource = ClienteDireccionCloudDataSource()
 
     suspend fun sincronizarPendientes(): SyncResult {
         val pendientes = localDataSource.pendientesSync()
@@ -35,9 +38,9 @@ class ClienteDireccionSyncManager(
         pendientes.forEach { item ->
             try {
                 when (item.syncStatus) {
-                    "PENDING_CREATE" -> sincronizarCreate(item)
-                    "PENDING_UPDATE" -> sincronizarUpdate(item)
-                    "PENDING_DELETE" -> sincronizarDelete(item)
+                    "PENDING_CREATE" -> sincronizarCreateCloud(item)
+                    "PENDING_UPDATE" -> sincronizarUpdateCloud(item)
+                    "PENDING_DELETE" -> sincronizarDeleteCloud(item)
                 }
 
                 sincronizadas++
@@ -53,10 +56,10 @@ class ClienteDireccionSyncManager(
         )
     }
 
-    private suspend fun sincronizarCreate(
+    private suspend fun sincronizarCreateCloud(
         item: ClienteDireccionLocalModel
     ) {
-        val response = api.crearDireccion(
+        val response = cloudDataSource.crear(
             clienteId = item.clienteId,
             request = item.toRequest()
         )
@@ -72,37 +75,36 @@ class ClienteDireccionSyncManager(
         )
     }
 
-    private suspend fun sincronizarUpdate(
+    private suspend fun sincronizarUpdateCloud(
         item: ClienteDireccionLocalModel
     ) {
-        val remoteId = item.remoteId
-            ?: throw IllegalStateException("No hay remoteId para actualizar.")
+        val direccionId = item.remoteId ?: item.localId
 
-        val response = api.actualizarDireccion(
+        val response = cloudDataSource.actualizar(
             clienteId = item.clienteId,
-            direccionId = remoteId,
+            direccionId = direccionId,
             request = item.toRequest()
         )
 
         val remoto = response.toLocalModel(
             clienteId = item.clienteId,
             syncStatus = "SYNCED"
+        ).copy(
+            localId = item.localId
         )
 
         localDataSource.marcarSincronizado(remoto)
     }
 
-    private suspend fun sincronizarDelete(
+    private suspend fun sincronizarDeleteCloud(
         item: ClienteDireccionLocalModel
     ) {
-        val remoteId = item.remoteId
+        val direccionId = item.remoteId ?: item.localId
 
-        if (remoteId != null) {
-            api.eliminarDireccion(
-                clienteId = item.clienteId,
-                direccionId = remoteId
-            )
-        }
+        cloudDataSource.eliminar(
+            clienteId = item.clienteId,
+            direccionId = direccionId
+        )
 
         localDataSource.eliminarDefinitivo(
             localId = item.localId,

@@ -2,6 +2,8 @@ package com.cletaeats.app.data.local
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
 
 class ClienteDireccionLocalDataSource(
     context: Context
@@ -13,21 +15,17 @@ class ClienteDireccionLocalDataSource(
 
         val cursor = db.rawQuery(
             """
-        SELECT *
-        FROM cliente_direcciones
-        WHERE cliente_id = ?
-          AND sync_status != 'PENDING_DELETE'
-        ORDER BY es_predeterminada DESC, updated_at DESC
-        """.trimIndent(),
+            SELECT *
+            FROM cliente_direcciones
+            WHERE cliente_id = ?
+              AND sync_status != 'PENDING_DELETE'
+            ORDER BY es_predeterminada DESC, alias ASC
+            """.trimIndent(),
             arrayOf(clienteId.toString())
         )
 
         return cursor.use {
-            buildList {
-                while (it.moveToNext()) {
-                    add(cursorToModel(it))
-                }
-            }
+            it.toModelList()
         }
     }
 
@@ -36,157 +34,96 @@ class ClienteDireccionLocalDataSource(
         query: String
     ): List<ClienteDireccionLocalModel> {
         val db = helper.readableDatabase
-        val like = "%$query%"
+        val like = "%${query.trim()}%"
 
         val cursor = db.rawQuery(
             """
-        SELECT *
-        FROM cliente_direcciones
-        WHERE cliente_id = ?
-          AND sync_status != 'PENDING_DELETE'
-          AND (
-            alias LIKE ?
-            OR direccion_texto LIKE ?
-          )
-        ORDER BY es_predeterminada DESC, updated_at DESC
-        """.trimIndent(),
-            arrayOf(clienteId.toString(), like, like)
+            SELECT *
+            FROM cliente_direcciones
+            WHERE cliente_id = ?
+              AND sync_status != 'PENDING_DELETE'
+              AND (
+                    alias LIKE ?
+                    OR direccion_texto LIKE ?
+              )
+            ORDER BY es_predeterminada DESC, alias ASC
+            """.trimIndent(),
+            arrayOf(
+                clienteId.toString(),
+                like,
+                like
+            )
         )
 
         return cursor.use {
-            buildList {
-                while (it.moveToNext()) {
-                    add(cursorToModel(it))
-                }
+            it.toModelList()
+        }
+    }
+
+    fun obtenerPorId(
+        clienteId: Long,
+        direccionId: Long
+    ): ClienteDireccionLocalModel? {
+        val db = helper.readableDatabase
+
+        val cursor = db.rawQuery(
+            """
+            SELECT *
+            FROM cliente_direcciones
+            WHERE cliente_id = ?
+              AND (
+                    local_id = ?
+                    OR remote_id = ?
+              )
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(
+                clienteId.toString(),
+                direccionId.toString(),
+                direccionId.toString()
+            )
+        )
+
+        return cursor.use {
+            if (it.moveToFirst()) {
+                it.toModel()
+            } else {
+                null
             }
+        }
+    }
+
+    fun pendientesSync(): List<ClienteDireccionLocalModel> {
+        val db = helper.readableDatabase
+
+        val cursor = db.rawQuery(
+            """
+            SELECT *
+            FROM cliente_direcciones
+            WHERE sync_status IN (
+                'PENDING_CREATE',
+                'PENDING_UPDATE',
+                'PENDING_DELETE'
+            )
+            ORDER BY updated_at ASC
+            """.trimIndent(),
+            null
+        )
+
+        return cursor.use {
+            it.toModelList()
         }
     }
 
     fun guardar(model: ClienteDireccionLocalModel): Long {
         val db = helper.writableDatabase
 
-        if (model.esPredeterminada) {
-            quitarPredeterminadas(model.clienteId)
-        }
-
-        val values = ContentValues().apply {
-            put("remote_id", model.remoteId)
-            put("cliente_id", model.clienteId)
-            put("alias", model.alias)
-            put("direccion_texto", model.direccionTexto)
-            put("latitud", model.latitud)
-            put("longitud", model.longitud)
-            put("es_predeterminada", if (model.esPredeterminada) 1 else 0)
-            put("sync_status", model.syncStatus)
-            put("updated_at", model.updatedAt)
-        }
-
-        return db.insert(
+        return db.insertWithOnConflict(
             "cliente_direcciones",
             null,
-            values
+            model.toContentValues(includeLocalId = model.localId > 0),
+            SQLiteDatabase.CONFLICT_REPLACE
         )
-    }
-
-    fun marcarPendienteDelete(model: ClienteDireccionLocalModel) {
-        val db = helper.writableDatabase
-
-        val values = ContentValues().apply {
-            put("sync_status", "PENDING_DELETE")
-            put("updated_at", System.currentTimeMillis())
-        }
-
-        if (model.remoteId != null) {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "remote_id = ?",
-                arrayOf(model.remoteId.toString())
-            )
-        } else {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "local_id = ?",
-                arrayOf(model.localId.toString())
-            )
-        }
-    }
-
-    fun eliminarDefinitivo(
-        localId: Long,
-        remoteId: Long?
-    ) {
-        val db = helper.writableDatabase
-
-        if (remoteId != null) {
-            db.delete(
-                "cliente_direcciones",
-                "remote_id = ?",
-                arrayOf(remoteId.toString())
-            )
-        } else {
-            db.delete(
-                "cliente_direcciones",
-                "local_id = ?",
-                arrayOf(localId.toString())
-            )
-        }
-    }
-
-    fun reemplazarLocalPorRemoto(
-        localId: Long,
-        remoto: ClienteDireccionLocalModel
-    ) {
-        val db = helper.writableDatabase
-
-        db.beginTransaction()
-
-        try {
-            db.delete(
-                "cliente_direcciones",
-                "local_id = ?",
-                arrayOf(localId.toString())
-            )
-
-            guardar(remoto)
-
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
-        }
-    }
-
-    fun marcarSincronizado(model: ClienteDireccionLocalModel) {
-        val db = helper.writableDatabase
-
-        val values = ContentValues().apply {
-            put("remote_id", model.remoteId)
-            put("cliente_id", model.clienteId)
-            put("alias", model.alias)
-            put("direccion_texto", model.direccionTexto)
-            put("latitud", model.latitud)
-            put("longitud", model.longitud)
-            put("es_predeterminada", if (model.esPredeterminada) 1 else 0)
-            put("sync_status", "SYNCED")
-            put("updated_at", System.currentTimeMillis())
-        }
-
-        if (model.remoteId != null) {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "remote_id = ?",
-                arrayOf(model.remoteId.toString())
-            )
-        } else {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "local_id = ?",
-                arrayOf(model.localId.toString())
-            )
-        }
     }
 
     fun guardarTodas(models: List<ClienteDireccionLocalModel>) {
@@ -196,7 +133,12 @@ class ClienteDireccionLocalDataSource(
 
         try {
             models.forEach { model ->
-                guardar(model)
+                db.insertWithOnConflict(
+                    "cliente_direcciones",
+                    null,
+                    model.toContentValues(includeLocalId = model.localId > 0),
+                    SQLiteDatabase.CONFLICT_REPLACE
+                )
             }
 
             db.setTransactionSuccessful()
@@ -208,58 +150,40 @@ class ClienteDireccionLocalDataSource(
     fun actualizar(model: ClienteDireccionLocalModel) {
         val db = helper.writableDatabase
 
-        if (model.esPredeterminada) {
-            quitarPredeterminadas(model.clienteId)
+        if (model.localId <= 0) {
+            guardar(model)
+            return
         }
 
-        val values = ContentValues().apply {
-            put("remote_id", model.remoteId)
-            put("cliente_id", model.clienteId)
-            put("alias", model.alias)
-            put("direccion_texto", model.direccionTexto)
-            put("latitud", model.latitud)
-            put("longitud", model.longitud)
-            put("es_predeterminada", if (model.esPredeterminada) 1 else 0)
-            put("sync_status", model.syncStatus)
-            put("updated_at", System.currentTimeMillis())
-        }
-
-        if (model.remoteId != null) {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "remote_id = ?",
-                arrayOf(model.remoteId.toString())
-            )
-        } else {
-            db.update(
-                "cliente_direcciones",
-                values,
-                "local_id = ?",
-                arrayOf(model.localId.toString())
-            )
-        }
+        db.update(
+            "cliente_direcciones",
+            model.toContentValues(includeLocalId = false),
+            "local_id = ?",
+            arrayOf(model.localId.toString())
+        )
     }
 
-    fun eliminar(
-        localId: Long,
-        remoteId: Long?
-    ) {
+    fun quitarPredeterminadas(clienteId: Long) {
         val db = helper.writableDatabase
 
-        if (remoteId != null) {
-            db.delete(
-                "cliente_direcciones",
-                "remote_id = ?",
-                arrayOf(remoteId.toString())
+        db.execSQL(
+            """
+            UPDATE cliente_direcciones
+            SET es_predeterminada = 0,
+                sync_status = CASE
+                    WHEN sync_status = 'PENDING_DELETE' THEN 'PENDING_DELETE'
+                    WHEN remote_id IS NULL THEN 'PENDING_CREATE'
+                    ELSE 'PENDING_UPDATE'
+                END,
+                updated_at = ?
+            WHERE cliente_id = ?
+              AND sync_status != 'PENDING_DELETE'
+            """.trimIndent(),
+            arrayOf(
+                System.currentTimeMillis(),
+                clienteId
             )
-        } else {
-            db.delete(
-                "cliente_direcciones",
-                "local_id = ?",
-                arrayOf(localId.toString())
-            )
-        }
+        )
     }
 
     fun limpiarCliente(clienteId: Long) {
@@ -272,94 +196,124 @@ class ClienteDireccionLocalDataSource(
         )
     }
 
-    fun pendientesSync(): List<ClienteDireccionLocalModel> {
-        val db = helper.readableDatabase
-
-        val cursor = db.rawQuery(
-            """
-            SELECT *
-            FROM cliente_direcciones
-            WHERE sync_status != 'SYNCED'
-            ORDER BY updated_at ASC
-            """.trimIndent(),
-            emptyArray()
-        )
-
-        return cursor.use {
-            buildList {
-                while (it.moveToNext()) {
-                    add(cursorToModel(it))
-                }
-            }
-        }
-    }
-
-    fun obtenerPorId(
-        clienteId: Long,
-        direccionId: Long
-    ): ClienteDireccionLocalModel? {
-        val db = helper.readableDatabase
-
-        val cursor = db.rawQuery(
-            """
-        SELECT *
-        FROM cliente_direcciones
-        WHERE cliente_id = ?
-          AND (
-            local_id = ?
-            OR remote_id = ?
-          )
-        LIMIT 1
-        """.trimIndent(),
-            arrayOf(
-                clienteId.toString(),
-                direccionId.toString(),
-                direccionId.toString()
+    fun marcarPendienteDelete(model: ClienteDireccionLocalModel) {
+        actualizar(
+            model.copy(
+                syncStatus = "PENDING_DELETE",
+                updatedAt = System.currentTimeMillis()
             )
         )
-
-        return cursor.use {
-            if (it.moveToFirst()) {
-                cursorToModel(it)
-            } else {
-                null
-            }
-        }
     }
 
-    fun quitarPredeterminadas(clienteId: Long) {
+    fun eliminarDefinitivo(
+        localId: Long,
+        remoteId: Long?
+    ) {
         val db = helper.writableDatabase
 
-        val values = ContentValues().apply {
-            put("es_predeterminada", 0)
+        if (remoteId == null) {
+            db.delete(
+                "cliente_direcciones",
+                "local_id = ?",
+                arrayOf(localId.toString())
+            )
+        } else {
+            db.delete(
+                "cliente_direcciones",
+                "local_id = ? OR remote_id = ?",
+                arrayOf(
+                    localId.toString(),
+                    remoteId.toString()
+                )
+            )
         }
+    }
 
-        db.update(
-            "cliente_direcciones",
-            values,
-            "cliente_id = ?",
-            arrayOf(clienteId.toString())
+    fun reemplazarLocalPorRemoto(
+        localId: Long,
+        remoto: ClienteDireccionLocalModel
+    ) {
+        eliminarDefinitivo(
+            localId = localId,
+            remoteId = null
+        )
+
+        guardar(
+            remoto.copy(
+                syncStatus = "SYNCED",
+                updatedAt = System.currentTimeMillis()
+            )
         )
     }
 
-    private fun cursorToModel(
-        cursor: android.database.Cursor
-    ): ClienteDireccionLocalModel {
-        return ClienteDireccionLocalModel(
-            localId = cursor.getLong(cursor.getColumnIndexOrThrow("local_id")),
-            remoteId = if (cursor.isNull(cursor.getColumnIndexOrThrow("remote_id"))) {
-                null
-            } else {
-                cursor.getLong(cursor.getColumnIndexOrThrow("remote_id"))
-            },
-            clienteId = cursor.getLong(cursor.getColumnIndexOrThrow("cliente_id")),
-            alias = cursor.getString(cursor.getColumnIndexOrThrow("alias")),
-            direccionTexto = cursor.getString(cursor.getColumnIndexOrThrow("direccion_texto")),
-            latitud = cursor.getDouble(cursor.getColumnIndexOrThrow("latitud")),
-            longitud = cursor.getDouble(cursor.getColumnIndexOrThrow("longitud")),
-            esPredeterminada = cursor.getInt(cursor.getColumnIndexOrThrow("es_predeterminada")) == 1,
-            syncStatus = cursor.getString(cursor.getColumnIndexOrThrow("sync_status")),
-            updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
+    fun marcarSincronizado(model: ClienteDireccionLocalModel) {
+        actualizar(
+            model.copy(
+                syncStatus = "SYNCED",
+                updatedAt = System.currentTimeMillis()
+            )
         )
+    }
+
+    private fun ClienteDireccionLocalModel.toContentValues(
+        includeLocalId: Boolean
+    ): ContentValues {
+        return ContentValues().apply {
+            if (includeLocalId) {
+                put("local_id", localId)
+            }
+
+            if (remoteId == null) {
+                putNull("remote_id")
+            } else {
+                put("remote_id", remoteId)
+            }
+
+            put("cliente_id", clienteId)
+            put("alias", alias)
+            put("direccion_texto", direccionTexto)
+            put("latitud", latitud)
+            put("longitud", longitud)
+            put("es_predeterminada", if (esPredeterminada) 1 else 0)
+            put("sync_status", syncStatus)
+            put("updated_at", updatedAt)
+        }
+    }
+
+    private fun Cursor.toModelList(): List<ClienteDireccionLocalModel> {
+        val result = mutableListOf<ClienteDireccionLocalModel>()
+
+        while (moveToNext()) {
+            result.add(toModel())
+        }
+
+        return result
+    }
+
+    private fun Cursor.toModel(): ClienteDireccionLocalModel {
+        return ClienteDireccionLocalModel(
+            localId = getLong(getColumnIndexOrThrow("local_id")),
+            remoteId = getNullableLong("remote_id"),
+            clienteId = getLong(getColumnIndexOrThrow("cliente_id")),
+            alias = getString(getColumnIndexOrThrow("alias")),
+            direccionTexto = getString(getColumnIndexOrThrow("direccion_texto")),
+            latitud = getDouble(getColumnIndexOrThrow("latitud")),
+            longitud = getDouble(getColumnIndexOrThrow("longitud")),
+            esPredeterminada = getInt(getColumnIndexOrThrow("es_predeterminada")) == 1,
+            syncStatus = getString(getColumnIndexOrThrow("sync_status")),
+            updatedAt = getLong(getColumnIndexOrThrow("updated_at"))
+        )
+    }
+
+    private fun Cursor.getNullableLong(
+        columnName: String
+    ): Long? {
+        val index = getColumnIndexOrThrow(columnName)
+
+        return if (isNull(index)) {
+            null
+        } else {
+            getLong(index)
+        }
     }
 }

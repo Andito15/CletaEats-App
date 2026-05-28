@@ -63,6 +63,7 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 fun DireccionFormScreen(
@@ -203,8 +204,8 @@ fun DireccionFormScreen(
                         selectedLatLng = selectedLatLng,
                         onLocationSelected = { latLng ->
                             selectedLatLng = latLng
-                            latitud = "%.7f".format(latLng.latitude)
-                            longitud = "%.7f".format(latLng.longitude)
+                            latitud = String.format(Locale.US, "%.7f", latLng.latitude)
+                            longitud = String.format(Locale.US, "%.7f", latLng.longitude)
                             error = null
                         }
                     )
@@ -474,7 +475,7 @@ private fun DataModeFormCard(
     val message = when (mode) {
         DataMode.API -> "La dirección se guarda en el backend y se copia localmente."
         DataMode.LOCAL -> "La dirección queda guardada en el dispositivo para uso offline."
-        DataMode.CLOUD -> "La dirección queda lista para sincronización con la nube."
+        DataMode.CLOUD -> "La dirección se guarda directamente en Firebase Cloud."
     }
 
     Card(
