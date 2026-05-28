@@ -24,11 +24,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +60,7 @@ import com.cletaeats.app.ui.theme.PrimaryDeep
 import com.cletaeats.app.ui.theme.PrimaryGreen
 import com.cletaeats.app.ui.theme.TextSoft
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @Composable
 fun PedidoDetalleScreen(
@@ -83,7 +83,10 @@ fun PedidoDetalleScreen(
 
     fun cargarPedido(showLoading: Boolean = true) {
         scope.launch {
-            if (showLoading) loading = true
+            if (showLoading) {
+                loading = true
+            }
+
             error = null
 
             try {
@@ -113,7 +116,12 @@ fun PedidoDetalleScreen(
 
                 pedido = api.obtenerPedidoRepartidor(pedidoId)
             } catch (e: Exception) {
-                error = e.toDeliveryMessage()
+                error = if (e is HttpException) {
+                    val body = e.response()?.errorBody()?.string()
+                    "HTTP ${e.code()}: ${body ?: e.message()}"
+                } else {
+                    e.message ?: e.toDeliveryMessage()
+                }
             } finally {
                 savingEstado = false
             }
@@ -128,7 +136,11 @@ fun PedidoDetalleScreen(
         title = pedido?.numeroPedido ?: "Pedido",
         onBack = onBack,
         actions = {
-            IconButton(onClick = { cargarPedido() }) {
+            IconButton(
+                onClick = {
+                    cargarPedido()
+                }
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.Refresh,
                     contentDescription = "Actualizar",
@@ -138,28 +150,38 @@ fun PedidoDetalleScreen(
         }
     ) { modifier ->
         when {
-            loading -> LoadingBox(modifier = modifier)
+            loading -> {
+                LoadingBox(modifier = modifier)
+            }
 
-            error != null && pedido == null -> ErrorState(
-                message = error ?: "Error inesperado.",
-                onRetry = { cargarPedido() },
-                modifier = modifier
-            )
+            error != null && pedido == null -> {
+                ErrorState(
+                    message = error ?: "Error inesperado.",
+                    onRetry = {
+                        cargarPedido()
+                    },
+                    modifier = modifier
+                )
+            }
 
-            pedido != null -> PedidoDetailContent(
-                pedido = pedido!!,
-                isDelivery = isDelivery,
-                savingEstado = savingEstado,
-                error = error,
-                onEstado = { estado -> actualizarEstado(estado) },
-                onTracking = {
-                    pedido!!.pedidoId?.let(onTracking)
-                },
-                onFeedback = {
-                    pedido!!.pedidoId?.let(onFeedback)
-                },
-                modifier = modifier
-            )
+            pedido != null -> {
+                PedidoDetailContent(
+                    pedido = pedido!!,
+                    isDelivery = isDelivery,
+                    savingEstado = savingEstado,
+                    error = error,
+                    onEstado = { estado ->
+                        actualizarEstado(estado)
+                    },
+                    onTracking = {
+                        pedido!!.pedidoId?.let(onTracking)
+                    },
+                    onFeedback = {
+                        pedido!!.pedidoId?.let(onFeedback)
+                    },
+                    modifier = modifier
+                )
+            }
         }
     }
 }
@@ -175,6 +197,12 @@ private fun PedidoDetailContent(
     onFeedback: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val estado = pedido.estado.trim().uppercase()
+    val isEnPreparacion = estado == "EN_PREPARACION"
+    val isEnCamino = estado == "EN_CAMINO"
+    val isEntregado = estado == "ENTREGADO"
+    val isCancelado = estado == "CANCELADO"
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -182,11 +210,11 @@ private fun PedidoDetailContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (isDelivery && pedido.estado != "ENTREGADO" && pedido.estado != "CANCELADO") {
+        if (isDelivery && isEnCamino) {
             pedido.pedidoId?.let { id ->
                 DeliveryLocationSender(
                     pedidoId = id,
-                    enabled = pedido.estado == "EN_CAMINO"
+                    enabled = true
                 )
             }
         }
@@ -248,7 +276,7 @@ private fun PedidoDetailContent(
                     fontWeight = FontWeight.Bold
                 )
 
-                Divider()
+                HorizontalDivider()
 
                 pedido.items.forEach { item ->
                     Row(
@@ -307,7 +335,7 @@ private fun PedidoDetailContent(
                         )
                     }
 
-                    Divider()
+                    HorizontalDivider()
 
                     TotalRow("Subtotal", factura.subtotal)
                     TotalRow("Transporte", factura.costoTransporte)
@@ -317,7 +345,7 @@ private fun PedidoDetailContent(
             }
         }
 
-        if (!isDelivery && pedido.estado == "EN_CAMINO") {
+        if (!isDelivery && isEnCamino) {
             Button(
                 onClick = onTracking,
                 modifier = Modifier.fillMaxWidth(),
@@ -336,73 +364,85 @@ private fun PedidoDetailContent(
             }
         }
 
-        if (isDelivery) {
-            Card(
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Actualizar estado",
-                        color = PrimaryDeep,
-                        fontWeight = FontWeight.Bold
+        if (isDelivery && !isEntregado && !isCancelado) {
+            if (isEnPreparacion || isEnCamino) {
+                Card(
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
                     )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = { onEstado("EN_CAMINO") },
-                            enabled = !savingEstado && pedido.estado != "ENTREGADO" && pedido.estado != "EN_CAMINO",
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            if (savingEstado) {
-                                CircularProgressIndicator(
-                                    color = PrimaryGreen,
-                                    strokeWidth = 2.dp
+                        Text(
+                            text = "Entrega",
+                            color = PrimaryDeep,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        if (isEnPreparacion) {
+                            Button(
+                                onClick = {
+                                    onEstado("EN_CAMINO")
+                                },
+                                enabled = !savingEstado,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PrimaryGreen,
+                                    contentColor = Color.White
                                 )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeliveryDining,
-                                    contentDescription = "En camino",
-                                    tint = PrimaryGreen
-                                )
+                            ) {
+                                if (savingEstado) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DeliveryDining,
+                                        contentDescription = null
+                                    )
+
+                                    Text("  Iniciar viaje")
+                                }
                             }
                         }
 
-                        Button(
-                            onClick = { onEstado("ENTREGADO") },
-                            enabled = !savingEstado && pedido.estado != "ENTREGADO",
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PrimaryGreen,
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            if (savingEstado) {
-                                CircularProgressIndicator(
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
+                        if (isEnCamino) {
+                            Button(
+                                onClick = {
+                                    onEstado("ENTREGADO")
+                                },
+                                enabled = !savingEstado,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PrimaryGreen,
+                                    contentColor = Color.White
                                 )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.CheckCircle,
-                                    contentDescription = "Entregado"
-                                )
+                            ) {
+                                if (savingEstado) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = null
+                                    )
+
+                                    Text("  Terminar pedido")
+                                }
                             }
                         }
                     }
                 }
             }
-        } else if (pedido.estado == "ENTREGADO") {
+        } else if (!isDelivery && isEntregado) {
             Button(
                 onClick = onFeedback,
                 modifier = Modifier.fillMaxWidth(),

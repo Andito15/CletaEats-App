@@ -85,6 +85,8 @@ import com.cletaeats.app.ui.theme.TextSoft
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.util.Locale
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 @Composable
 fun RepartidorPedidosScreen(
@@ -121,6 +123,28 @@ fun RepartidorPedidosScreen(
 
     var tab by remember { mutableStateOf("DISPONIBLES") }
 
+    fun errorReal(e: Exception): String {
+        return when (e) {
+            is HttpException -> {
+                val body = e.response()?.errorBody()?.string()
+                "HTTP ${e.code()}: ${body ?: e.message()}"
+            }
+
+            is SocketTimeoutException -> {
+                "Tiempo agotado consultando pedidos."
+            }
+
+            is IOException -> {
+                "Error de red consultando pedidos: ${e.message}"
+            }
+
+            else -> {
+                e.message ?: "Error inesperado consultando pedidos."
+            }
+        }
+    }
+
+
     fun cargarPedidos() {
         scope.launch {
             loading = true
@@ -142,12 +166,13 @@ fun RepartidorPedidosScreen(
                     tab = "MIOS"
                 }
             } catch (e: Exception) {
-                error = e.toDeliveryMessage()
+                error = errorReal(e)
             } finally {
                 loading = false
             }
         }
     }
+
 
     fun aceptarPedido(pedidoId: Long) {
         scope.launch {
@@ -168,7 +193,7 @@ fun RepartidorPedidosScreen(
                 tab = "MIOS"
                 onDetail(pedidoId)
             } catch (e: Exception) {
-                error = e.toDeliveryMessage()
+                error = errorReal(e)
                 cargarPedidos()
             } finally {
                 updatingPedidoId = null
@@ -733,8 +758,10 @@ private fun MiPedidoCard(
     onEnCamino: () -> Unit,
     onEntregado: () -> Unit
 ) {
-    val isEntregado = pedido.estado == "ENTREGADO"
-    val isEnCamino = pedido.estado == "EN_CAMINO"
+    val estado = pedido.estado.uppercase()
+    val isEntregado = estado == "ENTREGADO"
+    val isEnPreparacion = estado == "EN_PREPARACION"
+    val isEnCamino = estado == "EN_CAMINO"
 
     Card(
         modifier = Modifier
@@ -798,46 +825,47 @@ private fun MiPedidoCard(
                     )
                 }
 
-                OutlinedButton(
-                    onClick = onEnCamino,
-                    enabled = !updating && !isEntregado && !isEnCamino,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    if (updating && !isEnCamino) {
-                        CircularProgressIndicator(
-                            strokeWidth = 2.dp,
-                            color = PrimaryGreen
+                if (isEnPreparacion) {
+                    Button(
+                        onClick = onEnCamino,
+                        enabled = !updating,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryGreen,
+                            contentColor = Color.White
                         )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.DeliveryDining,
-                            contentDescription = "En camino",
-                            tint = PrimaryGreen
-                        )
+                    ) {
+                        if (updating) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text("Iniciar")
+                        }
                     }
                 }
 
-                Button(
-                    onClick = onEntregado,
-                    enabled = !updating && !isEntregado,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryGreen,
-                        contentColor = Color.White
-                    )
-                ) {
-                    if (updating && !isEntregado) {
-                        CircularProgressIndicator(
-                            strokeWidth = 2.dp,
-                            color = Color.White
+                if (isEnCamino) {
+                    Button(
+                        onClick = onEntregado,
+                        enabled = !updating,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryGreen,
+                            contentColor = Color.White
                         )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "Entregado"
-                        )
+                    ) {
+                        if (updating) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text("Terminar")
+                        }
                     }
                 }
             }

@@ -4,6 +4,7 @@ data class UbicacionRepartidorRequest(
     val pedidoId: Long?,
     val latitud: Double,
     val longitud: Double,
+
     val precisionMetros: Double?
 )
 
