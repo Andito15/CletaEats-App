@@ -6,25 +6,36 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
-object  RetrofitProvider {
+object RetrofitProvider {
 
     private const val BASE_URL = "https://cletaeats.onrender.com/"
 
     fun createApiService(context: Context): ApiService {
-        val sessionManager = SessionManager(context)
+        val sessionManager = SessionManager(context.applicationContext)
 
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
         val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .addInterceptor { chain ->
                 val token = sessionManager.getToken()
-                val requestBuilder = chain.request().newBuilder()
+
+                val requestBuilder = chain.request()
+                    .newBuilder()
 
                 if (!token.isNullOrBlank()) {
-                    requestBuilder.addHeader("Authorization", "Bearer $token")
+                    requestBuilder.addHeader(
+                        "Authorization",
+                        "Bearer $token"
+                    )
                 }
 
                 chain.proceed(requestBuilder.build())
