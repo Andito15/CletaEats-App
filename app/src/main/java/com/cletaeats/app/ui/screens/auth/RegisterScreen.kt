@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,12 +21,12 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,10 +54,13 @@ import androidx.compose.ui.unit.dp
 import com.cletaeats.app.R
 import com.cletaeats.app.data.model.RegisterRequest
 import com.cletaeats.app.data.remote.RetrofitProvider
+import com.cletaeats.app.data.remote.toRegisterMessage
 import com.cletaeats.app.data.remote.toUserMessage
 import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.PrimaryGreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 private fun validarNombre(nombre: String): String? {
     val limpio = nombre.trim()
@@ -129,6 +134,7 @@ fun RegisterScreen(
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
     var generalError by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
 
     fun validarTodo(): Boolean {
@@ -161,10 +167,14 @@ fun RegisterScreen(
             .fillMaxSize()
             .background(BackgroundSoft)
             .verticalScroll(rememberScrollState())
+            .imePadding()
+            .navigationBarsPadding()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
+        Spacer(modifier = Modifier.height(20.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
@@ -199,6 +209,7 @@ fun RegisterScreen(
                         onClick = {
                             rol = "CLIENTE"
                             generalError = null
+                            successMessage = null
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -210,6 +221,7 @@ fun RegisterScreen(
                         onClick = {
                             rol = "REPARTIDOR"
                             generalError = null
+                            successMessage = null
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -223,6 +235,7 @@ fun RegisterScreen(
                         nombre = it
                         nombreError = validarNombre(it)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Nombre") },
@@ -245,6 +258,7 @@ fun RegisterScreen(
                         cedula = it.filter { char -> char.isDigit() }.take(12)
                         cedulaError = validarCedula(cedula)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Cédula") },
@@ -267,6 +281,7 @@ fun RegisterScreen(
                         correo = it
                         correoError = validarCorreo(it)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Correo") },
@@ -289,6 +304,7 @@ fun RegisterScreen(
                         telefono = it.filter { char -> char.isDigit() }.take(8)
                         telefonoError = validarTelefono(telefono)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Teléfono") },
@@ -312,6 +328,7 @@ fun RegisterScreen(
                         passwordError = validarPassword(it)
                         confirmPasswordError = validarConfirmPassword(it, confirmPassword)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Contraseña") },
@@ -351,6 +368,7 @@ fun RegisterScreen(
                         confirmPassword = it
                         confirmPasswordError = validarConfirmPassword(password, it)
                         generalError = null
+                        successMessage = null
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Confirmar") },
@@ -391,11 +409,21 @@ fun RegisterScreen(
                     )
                 }
 
+                if (successMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = successMessage.orEmpty(),
+                        color = PrimaryGreen,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = {
                         generalError = null
+                        successMessage = null
 
                         if (!validarTodo()) return@Button
 
@@ -415,14 +443,21 @@ fun RegisterScreen(
                                 )
 
                                 if (response.success) {
+                                    generalError = null
+                                    successMessage = "Cuenta creada correctamente. Ya podés iniciar sesión."
+
+                                    delay(1400)
+
                                     onBackToLogin()
                                 } else {
+                                    successMessage = null
                                     generalError = response.message.ifBlank {
                                         "No se pudo crear la cuenta."
                                     }
                                 }
                             } catch (e: Exception) {
-                                generalError = e.toUserMessage()
+                                successMessage = null
+                                generalError = e.toRegisterMessage()
                             } finally {
                                 loading = false
                             }
@@ -462,6 +497,8 @@ fun RegisterScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }
 

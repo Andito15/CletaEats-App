@@ -2,6 +2,7 @@ package com.cletaeats.app.data.remote
 
 import retrofit2.HttpException
 import java.io.IOException
+import org.json.JSONObject
 
 fun Throwable.toUserMessage(): String {
     return when (this) {
@@ -72,5 +73,69 @@ fun Throwable.toDeliveryMessage(): String {
         }
 
         else -> toUserMessage()
+    }
+}
+
+fun Throwable.toRegisterMessage(): String {
+    return when (this) {
+        is HttpException -> {
+            val body = response()?.errorBody()?.string()
+            val backendMessage = body.extractBackendMessage()
+
+            when (code()) {
+                400 -> backendMessage ?: "La solicitud tiene datos inválidos. Revisá la información."
+                401 -> "Tu sesión expiró. Volvé a iniciar sesión."
+                403 -> "No tenés permisos para crear esta cuenta."
+
+                409 -> {
+                    when {
+                        backendMessage?.contains("correo", ignoreCase = true) == true ->
+                            "Ya existe una cuenta registrada con ese correo."
+
+                        backendMessage?.contains("cedula", ignoreCase = true) == true ||
+                                backendMessage?.contains("cédula", ignoreCase = true) == true ->
+                            "Ya existe una cuenta registrada con esa cédula."
+
+                        backendMessage?.contains("telefono", ignoreCase = true) == true ||
+                                backendMessage?.contains("teléfono", ignoreCase = true) == true ->
+                            "Ya existe una cuenta registrada con ese teléfono."
+
+                        else ->
+                            backendMessage ?: "Ya existe una cuenta con esos datos."
+                    }
+                }
+
+                500 -> "Ocurrió un error en el servidor al crear la cuenta."
+                else -> backendMessage ?: "Error HTTP ${code()}. Intentá de nuevo."
+            }
+        }
+
+        is IOException -> {
+            "No se pudo conectar con el servidor. Revisá tu conexión."
+        }
+
+        else -> {
+            message ?: "No se pudo crear la cuenta."
+        }
+    }
+}
+
+private fun String?.extractBackendMessage(): String? {
+    if (this.isNullOrBlank()) return null
+
+    return try {
+        val json = JSONObject(this)
+
+        json.optString("message").ifBlank {
+            json.optString("error").ifBlank {
+                json.optString("detail").ifBlank {
+                    json.optString("title").ifBlank {
+                        null
+                    }
+                }
+            }
+        }
+    } catch (_: Exception) {
+        this
     }
 }
