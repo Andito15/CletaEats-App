@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitProvider {
 
-    private const val BASE_URL = "https://cletaeats.onrender.com/"
+    private const val BASE_URL = "https://cletaeatsapp.onrender.com/"
 
     fun createApiService(context: Context): ApiService {
         val sessionManager = SessionManager(context.applicationContext)
