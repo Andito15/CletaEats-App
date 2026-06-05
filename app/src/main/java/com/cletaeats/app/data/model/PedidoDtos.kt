@@ -18,6 +18,10 @@ data class PedidoEstadoRequest(
     val estado: String
 )
 
+data class UploadImageResponse(
+    val url: String
+)
+
 data class PedidoResponse(
     val pedidoId: Long?,
     val numeroPedido: String,

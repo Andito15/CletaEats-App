@@ -1,6 +1,11 @@
 package com.cletaeats.app.ui.screens.auth
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.util.Patterns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,11 +29,13 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeliveryDining
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,6 +44,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,22 +55,28 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import com.cletaeats.app.R
 import com.cletaeats.app.data.model.RegisterRequest
 import com.cletaeats.app.data.remote.RetrofitProvider
 import com.cletaeats.app.data.remote.toRegisterMessage
-import com.cletaeats.app.data.remote.toUserMessage
 import com.cletaeats.app.ui.theme.BackgroundSoft
 import com.cletaeats.app.ui.theme.PrimaryGreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 
 private fun validarNombre(nombre: String): String? {
     val limpio = nombre.trim()
@@ -137,6 +153,20 @@ fun RegisterScreen(
     var successMessage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
 
+    var showCamera by remember { mutableStateOf(false) }
+    var selfieFile by remember { mutableStateOf<File?>(null) }
+    var selfieUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            showCamera = true
+        } else {
+            generalError = "Se requiere permiso de cámara para registrar repartidor."
+        }
+    }
+
     fun validarTodo(): Boolean {
         val nombreVal = validarNombre(nombre)
         val cedulaVal = validarCedula(cedula)
@@ -208,6 +238,8 @@ fun RegisterScreen(
                         contentDescription = "Cliente",
                         onClick = {
                             rol = "CLIENTE"
+                            selfieFile = null
+                            selfieUri = null
                             generalError = null
                             successMessage = null
                         },
@@ -225,6 +257,67 @@ fun RegisterScreen(
                         },
                         modifier = Modifier.weight(1f)
                     )
+                }
+
+                if (rol == "REPARTIDOR") {
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = BackgroundSoft,
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (selfieUri != null) {
+                                AsyncImage(
+                                    model = selfieUri,
+                                    contentDescription = "Foto del repartidor",
+                                    modifier = Modifier
+                                        .size(110.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.PhotoCamera,
+                                    contentDescription = null,
+                                    tint = PrimaryGreen,
+                                    modifier = Modifier.size(54.dp)
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    val granted = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.CAMERA
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    if (granted) {
+                                        showCamera = true
+                                    } else {
+                                        cameraPermissionLauncher.launch(
+                                            Manifest.permission.CAMERA
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PrimaryGreen,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CameraAlt,
+                                    contentDescription = "Tomar foto"
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -339,7 +432,11 @@ fun RegisterScreen(
                         )
                     },
                     trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        IconButton(
+                            onClick = {
+                                passwordVisible = !passwordVisible
+                            }
+                        ) {
                             Icon(
                                 imageVector = if (passwordVisible) {
                                     Icons.Filled.VisibilityOff
@@ -379,7 +476,11 @@ fun RegisterScreen(
                         )
                     },
                     trailingIcon = {
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                        IconButton(
+                            onClick = {
+                                confirmPasswordVisible = !confirmPasswordVisible
+                            }
+                        ) {
                             Icon(
                                 imageVector = if (confirmPasswordVisible) {
                                     Icons.Filled.VisibilityOff
@@ -425,12 +526,38 @@ fun RegisterScreen(
                         generalError = null
                         successMessage = null
 
-                        if (!validarTodo()) return@Button
+                        if (!validarTodo()) {
+                            return@Button
+                        }
+
+                        if (rol == "REPARTIDOR" && selfieFile == null) {
+                            generalError = "Tomá una foto con la cámara frontal para registrarte como repartidor."
+                            return@Button
+                        }
 
                         scope.launch {
                             loading = true
 
                             try {
+                                val fotoUrl = if (rol == "REPARTIDOR") {
+                                    val file = selfieFile
+                                        ?: throw IllegalStateException("La foto del repartidor es obligatoria.")
+
+                                    val requestFile = file.asRequestBody(
+                                        "image/jpeg".toMediaTypeOrNull()
+                                    )
+
+                                    val part = MultipartBody.Part.createFormData(
+                                        name = "file",
+                                        filename = file.name,
+                                        body = requestFile
+                                    )
+
+                                    apiService.subirImagenRegistro(part).url
+                                } else {
+                                    null
+                                }
+
                                 val response = apiService.register(
                                     RegisterRequest(
                                         rol = rol,
@@ -438,7 +565,8 @@ fun RegisterScreen(
                                         cedula = cedula.trim(),
                                         correo = correo.trim().lowercase(),
                                         telefono = telefono.trim(),
-                                        password = password
+                                        password = password,
+                                        fotoUrl = fotoUrl
                                     )
                                 )
 
@@ -500,6 +628,20 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
     }
+
+    if (showCamera) {
+        SelfieCameraDialog(
+            onDismiss = {
+                showCamera = false
+            },
+            onPhotoTaken = { file, uri ->
+                selfieFile = file
+                selfieUri = uri
+                showCamera = false
+                generalError = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -515,8 +657,16 @@ private fun RoleButton(
         modifier = modifier.height(48.dp),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) PrimaryGreen else BackgroundSoft,
-            contentColor = if (selected) Color.White else PrimaryGreen
+            containerColor = if (selected) {
+                PrimaryGreen
+            } else {
+                BackgroundSoft
+            },
+            contentColor = if (selected) {
+                Color.White
+            } else {
+                PrimaryGreen
+            }
         )
     ) {
         Icon(

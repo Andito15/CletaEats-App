@@ -6,5 +6,6 @@ data class RegisterRequest(
     val cedula: String,
     val correo: String,
     val telefono: String,
-    val password: String
+    val password: String,
+    val fotoUrl: String? = null
 )

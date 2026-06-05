@@ -25,6 +25,10 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import com.cletaeats.app.data.model.UbicacionRepartidorRequest
 import com.cletaeats.app.data.model.UbicacionRepartidorResponse
+import com.cletaeats.app.data.model.UploadImageResponse
+import okhttp3.MultipartBody
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 
 interface ApiService {
 
@@ -152,4 +156,10 @@ interface ApiService {
     suspend fun aceptarPedidoRepartidor(
         @Path("pedidoId") pedidoId: Long
     ): PedidoResponse
+
+    @Multipart
+    @POST("api/auth/uploads/imagen")
+    suspend fun subirImagenRegistro(
+        @Part file: MultipartBody.Part
+    ): UploadImageResponse
 }
