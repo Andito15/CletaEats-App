@@ -4,13 +4,20 @@ import android.content.Context
 
 class SessionManager(context: Context) {
 
-    private val prefs = context.getSharedPreferences("cletaeats_session", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(
+        "cletaeats_session",
+        Context.MODE_PRIVATE
+    )
 
     fun saveToken(token: String) {
-        prefs.edit().putString("token", token).apply()
+        prefs.edit()
+            .putString(KEY_TOKEN, token)
+            .apply()
     }
 
-    fun getToken(): String? = prefs.getString("token", null)
+    fun getToken(): String? {
+        return prefs.getString(KEY_TOKEN, null)
+    }
 
     fun saveUserData(
         usuarioId: Long?,
@@ -18,38 +25,65 @@ class SessionManager(context: Context) {
         repartidorId: Long?,
         nombre: String?,
         correo: String?,
-        rol: String?
+        rol: String?,
+        fotoUrl: String? = null
     ) {
         prefs.edit()
-            .putLong("usuarioId", usuarioId ?: -1L)
-            .putLong("clienteId", clienteId ?: -1L)
-            .putLong("repartidorId", repartidorId ?: -1L)
-            .putString("nombre", nombre)
-            .putString("correo", correo)
-            .putString("rol", rol)
+            .putLong(KEY_USUARIO_ID, usuarioId ?: -1L)
+            .putLong(KEY_CLIENTE_ID, clienteId ?: -1L)
+            .putLong(KEY_REPARTIDOR_ID, repartidorId ?: -1L)
+            .putString(KEY_NOMBRE, nombre)
+            .putString(KEY_CORREO, correo)
+            .putString(KEY_ROL, rol)
+            .putString(KEY_FOTO_URL, fotoUrl?.takeIf { it.isNotBlank() })
             .apply()
     }
 
     fun getUsuarioId(): Long? {
-        val value = prefs.getLong("usuarioId", -1L)
+        val value = prefs.getLong(KEY_USUARIO_ID, -1L)
         return if (value == -1L) null else value
     }
 
     fun getClienteId(): Long? {
-        val value = prefs.getLong("clienteId", -1L)
+        val value = prefs.getLong(KEY_CLIENTE_ID, -1L)
         return if (value == -1L) null else value
     }
 
     fun getRepartidorId(): Long? {
-        val value = prefs.getLong("repartidorId", -1L)
+        val value = prefs.getLong(KEY_REPARTIDOR_ID, -1L)
         return if (value == -1L) null else value
     }
 
-    fun getNombre(): String? = prefs.getString("nombre", null)
-    fun getCorreo(): String? = prefs.getString("correo", null)
-    fun getRol(): String? = prefs.getString("rol", null)
+    fun getNombre(): String? {
+        return prefs.getString(KEY_NOMBRE, null)
+    }
+
+    fun getCorreo(): String? {
+        return prefs.getString(KEY_CORREO, null)
+    }
+
+    fun getRol(): String? {
+        return prefs.getString(KEY_ROL, null)
+    }
+
+    fun getFotoUrl(): String? {
+        return prefs.getString(KEY_FOTO_URL, null)
+    }
 
     fun clearSession() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .clear()
+            .apply()
+    }
+
+    companion object {
+        private const val KEY_TOKEN = "token"
+        private const val KEY_USUARIO_ID = "usuarioId"
+        private const val KEY_CLIENTE_ID = "clienteId"
+        private const val KEY_REPARTIDOR_ID = "repartidorId"
+        private const val KEY_NOMBRE = "nombre"
+        private const val KEY_CORREO = "correo"
+        private const val KEY_ROL = "rol"
+        private const val KEY_FOTO_URL = "fotoUrl"
     }
 }

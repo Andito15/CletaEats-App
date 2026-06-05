@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -29,7 +31,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,14 +45,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.cletaeats.app.domain.payment.PaymentCard
 import com.cletaeats.app.domain.payment.PaymentCardsManager
 import com.cletaeats.app.domain.session.SessionManager
@@ -74,6 +79,7 @@ fun PerfilScreen(
     val rol = sessionManager.getRol().orEmpty()
     val clienteId = sessionManager.getClienteId()
     val repartidorId = sessionManager.getRepartidorId()
+    val fotoUrl = sessionManager.getFotoUrl()
 
     var tarjetas by remember {
         mutableStateOf(PaymentCardsManager.getCards(context))
@@ -132,7 +138,8 @@ fun PerfilScreen(
                         if (rol == "REPARTIDOR") "Repartidor" else "Cliente"
                     },
                     correo = correo,
-                    rol = rol
+                    rol = rol,
+                    fotoUrl = if (rol == "REPARTIDOR") fotoUrl else null
                 )
             }
 
@@ -209,34 +216,34 @@ fun PerfilScreen(
                             showCardForm = !showCardForm
                             mensajeTarjeta = null
                         },
-                        onNumeroChange = { value ->
+                        onNumeroChange = { value: String ->
                             numeroTarjeta = value
-                                .filter { it.isDigit() }
+                                .filter { char -> char.isDigit() }
                                 .take(19)
 
                             mensajeTarjeta = null
                         },
-                        onTitularChange = { value ->
+                        onTitularChange = { value: String ->
                             titularTarjeta = value
                             mensajeTarjeta = null
                         },
-                        onMesChange = { value ->
+                        onMesChange = { value: String ->
                             mesTarjeta = value
-                                .filter { it.isDigit() }
+                                .filter { char -> char.isDigit() }
                                 .take(2)
 
                             mensajeTarjeta = null
                         },
-                        onAnioChange = { value ->
+                        onAnioChange = { value: String ->
                             anioTarjeta = value
-                                .filter { it.isDigit() }
+                                .filter { char -> char.isDigit() }
                                 .take(4)
 
                             mensajeTarjeta = null
                         },
-                        onCvvChange = { value ->
+                        onCvvChange = { value: String ->
                             cvvTarjeta = value
-                                .filter { it.isDigit() }
+                                .filter { char -> char.isDigit() }
                                 .take(4)
 
                             mensajeTarjeta = null
@@ -272,11 +279,11 @@ fun PerfilScreen(
                                 }
                             }
                         },
-                        onDefault = { cardId ->
+                        onDefault = { cardId: String ->
                             PaymentCardsManager.setDefault(context, cardId)
                             tarjetas = PaymentCardsManager.getCards(context)
                         },
-                        onDelete = { cardId ->
+                        onDelete = { cardId: String ->
                             PaymentCardsManager.deleteCard(context, cardId)
                             tarjetas = PaymentCardsManager.getCards(context)
                         }
@@ -301,7 +308,8 @@ private data class ProfileRow(
 private fun ProfileHeaderCard(
     nombre: String,
     correo: String,
-    rol: String
+    rol: String,
+    fotoUrl: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -315,12 +323,23 @@ private fun ProfileHeaderCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Rounded.AccountCircle,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.padding(8.dp)
-            )
+            if (!fotoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = fotoUrl,
+                    contentDescription = "Foto de perfil",
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.AccountCircle,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(72.dp)
+                )
+            }
 
             Column(
                 modifier = Modifier.weight(1f)
@@ -373,7 +392,7 @@ private fun InfoCard(
                 fontWeight = FontWeight.Bold
             )
 
-            Divider()
+            HorizontalDivider()
 
             rows.forEach { row ->
                 InfoRow(row = row)
@@ -567,7 +586,7 @@ private fun PaymentCardsSection(
             }
 
             if (showForm) {
-                Divider()
+                HorizontalDivider()
 
                 Text(
                     text = "Agregar tarjeta",

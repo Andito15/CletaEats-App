@@ -238,7 +238,8 @@ fun LoginScreen(
                                         repartidorId = response.repartidorId,
                                         nombre = response.nombre,
                                         correo = response.correo,
-                                        rol = rolApp
+                                        rol = rolApp,
+                                        fotoUrl = response.fotoUrl
                                     )
 
                                     onLoginSuccess(rolApp)

@@ -40,7 +40,8 @@ data class PedidoResponse(
     val costoKmAplicado: Double,
     val observaciones: String?,
     val items: List<PedidoItemResponse>,
-    val factura: FacturaResumenResponse?
+    val factura: FacturaResumenResponse?,
+    val repartidorFotoUrl: String? = null
 )
 
 data class PedidoItemResponse(
